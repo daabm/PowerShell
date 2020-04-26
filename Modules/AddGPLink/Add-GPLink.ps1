@@ -230,13 +230,13 @@ Function Add-GPLink {
         If ( $RegexEscape ) { $OUFilter = [Regex]::Escape( $OUFilter ) }
 
         $LDAPParms = @{
-            LDAPFilter = "(&(objectClass=organizationalUnit)(GPLink=*$($SourceGPO.Id.Guid)*))"
+            LDAPFilter = "(GPLink=*$($SourceGPO.Id.Guid)*)"
             Properties = 'GPLink'
             SearchBase = $LDAPSearchBase
             SearchScope = 'SubTree'
         }
 
-        $OrganizationalUnits = Get-ADObject @LDAPParms | Where-Object { $_.DistinguishedName -match $OUFilter }
+        $OrganizationalUnits = Get-ADOrganizationalUnit @LDAPParms | Where-Object { $_.DistinguishedName -match $OUFilter }
 
         $Counter = 0
         Foreach ( $OU in $OrganizationalUnits ) {
