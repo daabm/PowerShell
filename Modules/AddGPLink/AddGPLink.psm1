@@ -115,7 +115,7 @@ Function Add-GPLink {
         [String] $TargetDomain = $env:USERDNSDOMAIN,
         
         [Parameter()]
-        [ValidateScript( { $_ -match '^(?:(?<path>(?:(?:OU)=[^,]+,?)+),)?$' } )]
+        [ValidateScript( { $_ -match '^(?:OU=[^,]+,?)+$' } )]
         [String] $SearchBase,
         
         [Parameter()]
@@ -250,45 +250,70 @@ Function Add-GPLink {
             }
             Write-Progress @ActivityParms -Id 0 
 
-            # First, get the current GPO links as a hashtable with the GPO id as key and the link properties as a custom object
-            $GPLinks = Resolve-GPLinksFromHashtable -OU $OU -GuidHash $GuidHash
+            If ( -not $RemoveLink ) {
 
-            If ( -not $RemoveLink ) { $OldOrder = ( $GPLinks[ $TargetGPO.Id.Guid ] ).Order }
+                # First, get the current GPO links as a hashtable with the GPO id as key and the link properties as a custom object
+                $GPLinks = Resolve-GPLinksFromHashtable -OU $OU -GuidHash $GuidHash
 
-            # Need LinkOrder of ReferenceGPO if we want to replace the current link or link before/after.
-            If ( $ReplaceLink -Or $RelativeLinkPos ) {
+                $UpdateLink = $False
 
-                $LinkOrder = ( $GPLinks[ $SourceGPO.Id.Guid ] ).Order
+                # Need LinkOrder of both GPOs if we want to replace the current link or link before/after.
+                $SourceGPOLink = $GPLinks[ $SourceGPO.Id.Guid ]
+                $SourceGPOLinkOrder = $SourceGPOLink.Order
+                $TargetGPOLink = $GPLinks[ $TargetGPO.Id.Guid ] # might be empty if not already linked
+                $TargetGPOLinkOrder = $TargetGPOLink.Order 
+                
+                # link of new gpo defaults to same as old gpo
+                $TargetGPONewLinkOrder = $SourceGPOLinkOrder
 
-                # Need to fix LinkOrder if NewGPO is already linked above ReferenceGPO...
-                If ( $OldOrder -and $OldOrder -lt $LinkOrder ) { $LinkOrder -= 1 }
+                If ( $ReplaceLink -Or $RelativeLinkPos ) {
 
-                If ( $RelativeLinkPos -match 'after' ) {
-                    $LinkOrder += 1
+                    # Need to fix LinkOrder if NewGPO is already linked above ReferenceGPO... Removing moves ReferenceGPO one position to top...
+                    If ( $TargetGPOLinkOrder -and $TargetGPOLinkOrder -lt $SourceGPOLinkOrder ) { $TargetGPONewLinkOrder -= 1 }
+
+                    # If NewGPO should be linked below ReferenceGPO, add 1 position.
+                    If ( $RelativeLinkPos -match 'after' ) {
+                        $TargetGPONewLinkOrder += 1
+                    }
+
+                } ElseIf ( $LinkOrder ) {
+
+                    # static link order specified via parameter
+                    $TargetGPONewLinkOrder = $LinkOrder
+
+                } Else {
+
+                    If ( -not $TargetGPOLinkOrder ) {
+                        # still no link order? append at the bottom.
+                        $TargetGPONewLinkOrder = $GPLinks.Count + 1
+                    } Else {
+                        # already linked, simply keep current link order
+                        $TargetGPONewLinkOrder = $TargetGPOLinkOrder
+                    }
+
                 }
 
-            } ElseIf ( -not $LinkOrder ) {
-
-                # If a LinkOrder is not already specified, append at the bottom
-                $LinkOrder = $GPLinks.Count + 1
-
-            }
-
-
-            If ( $NewGPO ) {
+                # verify if the existing link must be updated at all
+                If ( ( $TargetGPOLinkOrder -ne $TargetGPONewLinkOrder ) -or
+                     ( $LinkEnabled -ne [Microsoft.GroupPolicy.EnableLink]::Unspecified -and $GPLinks[ $TargetGPO.Id.Guid ].Enabled -ne $LinkEnabled ) -or
+                     ( $Enforced -ne [Microsoft.GroupPolicy.EnforceLink]::Unspecified -and $GPLinks[ $TargetGPO.Id.Guid ].Enforced -ne $Enforced )
+                    ) {
+                    $UpdateLink = $True
+                }
 
                 $LinkParms = @{
                     Guid = $TargetGPO.Id
                     Target = $OU.DistinguishedName
-                    Order = $LinkOrder
+                    Order = $TargetGPONewLinkOrder
                     LinkEnabled = $LinkEnabled
                     Enforced = $Enforced
                 }
 
-                If ( $OldOrder ) {
 
-                    # NewGPO is already linked, so simply update LinkOrder
-                    Set-GPLink @LinkParms @GPParms
+                If ( $TargetGPOLinkOrder ) {
+
+                    # NewGPO is already linked, so simply update Link if required
+                    If ( $UpdateLink ) { Set-GPLink @LinkParms @GPParms }
 
                 } Else {
 
@@ -381,7 +406,7 @@ Function Resolve-GPLinksFromHashtable{
     $GPLinks = $OU.GPLink.Substring( 1, $OU.GPLink.Length - 2 ) -split '\]\['
     $Target = $OU.DistinguishedName
 
-    $Return = New-Object System.Collections.Hashtable
+    $Return = @{}
 
     #we need to do reverse to get the proper link order
     for ( $s = $GPLinks.Count - 1; $s -ge 0; $s-- ) {
