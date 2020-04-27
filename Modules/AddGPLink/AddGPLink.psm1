@@ -152,8 +152,8 @@ Function Add-GPLink {
 
     DynamicParam {
 
-        $GPOHash = New-Object System.Collections.Hashtable
-        $GuidHash = New-Object System.Collections.Hashtable
+        $GPOHash = @{}
+        $GuidHash = @{}
         $GPOs = Sort-Object -InputObject ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
         Foreach ( $GPO in $GPOs ) {
             $GPOHash[ $GPO.DisplayName ] = $GPO
@@ -234,6 +234,7 @@ Function Add-GPLink {
             Properties = 'GPLink'
             SearchBase = $LDAPSearchBase
             SearchScope = 'SubTree'
+            Server = $PDC
         }
 
         $OrganizationalUnits = Where-Object -InputObject ( Get-ADOrganizationalUnit @LDAPParms ) -FilterScript { $_.DistinguishedName -match $OUFilter }
