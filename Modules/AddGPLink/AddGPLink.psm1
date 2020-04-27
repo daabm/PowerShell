@@ -154,7 +154,7 @@ Function Add-GPLink {
 
         $GPOHash = New-Object System.Collections.Hashtable
         $GuidHash = New-Object System.Collections.Hashtable
-        $GPOs = Get-GPO -All -Domain $TargetDomain | Sort-Object -Property ModificationTime
+        $GPOs = Sort-Object -InputObject ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
         Foreach ( $GPO in $GPOs ) {
             $GPOHash[ $GPO.DisplayName ] = $GPO
             $GuidHash[ $GPO.Id.Guid ] = $GPO
@@ -236,7 +236,7 @@ Function Add-GPLink {
             SearchScope = 'SubTree'
         }
 
-        $OrganizationalUnits = Get-ADOrganizationalUnit @LDAPParms | Where-Object { $_.DistinguishedName -match $OUFilter }
+        $OrganizationalUnits = Where-Object -InputObject ( Get-ADOrganizationalUnit @LDAPParms ) -FilterScript { $_.DistinguishedName -match $OUFilter }
 
         $Counter = 0
         Foreach ( $OU in $OrganizationalUnits ) {
@@ -250,9 +250,9 @@ Function Add-GPLink {
             Write-Progress @ActivityParms -Id 0 
 
             # First, get the current GPO links as a hashtable with the GPO id as key and the link properties as a custom object
-            $GPLinks = Resolve-GPLinksFromHashtable -OU $OU -GpoHash $GuidHash
+            $GPLinks = Resolve-GPLinksFromHashtable -OU $OU -GuidHash $GuidHash
 
-            $OldOrder = ( $GPLinks[ $TargetGPO.Id.Guid ] ).Order
+            If ( -not $RemoveLink ) { $OldOrder = ( $GPLinks[ $TargetGPO.Id.Guid ] ).Order }
 
             # Need LinkOrder of ReferenceGPO if we want to replace the current link or link before/after.
             If ( $ReplaceLink -Or $RelativeLinkPos ) {
@@ -383,11 +383,11 @@ Function Resolve-GPLinksFromHashtable{
     $Return = New-Object System.Collections.Hashtable
 
     #we need to do reverse to get the proper link order
-    for ( $s = $GPLinks.Count - 1; $s -gt -1; $s-- ) {
+    for ( $s = $GPLinks.Count - 1; $s -ge 0; $s-- ) {
         $o++
         $Order = $o
 
-        $GPLinks[$s] -match '{(?<GpoGuid>.*)}.*;(?<Flags>\d)$' | Out-Null
+        $null = $GPLinks[$s] -match '{(?<GpoGuid>.*)}.*;(?<Flags>\d)$'
         $GpoGuid = $Matches.GpoGuid
         $Flags = $Matches.Flags
 
