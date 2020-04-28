@@ -262,7 +262,7 @@ Function Add-GPLink {
             Server = $PDC
         }
 
-        $OrganizationalUnits = Where-Object -InputObject ( Get-ADOrganizationalUnit @LDAPParms ) -FilterScript { $_.DistinguishedName -match $OUFilter }
+        $OrganizationalUnits = Get-ADOrganizationalUnit @LDAPParms | Where-Object -FilterScript { $_.DistinguishedName -match $OUFilter }
 
         $Counter = 0
         Foreach ( $OU in $OrganizationalUnits ) {
@@ -407,7 +407,7 @@ Function New-DynamicParameter {
     Foreach ( $ParameterAttribute in $ParameterAttributes ) {
         $ParamAttrib = New-Object System.Management.Automation.ParameterAttribute
         # Get all settable properties of the $ParamAttrib object
-        $AttribNames = ( Where-Object -InputObject ( Get-Member -InputObject $ParamAttrib -MemberType Property ) -FilterScript { $_.Definition -match '{.*set;.*}$' } ).Name
+        $AttribNames = ( Get-Member -InputObject $ParamAttrib -MemberType Property | Where-Object -FilterScript { $_.Definition -match '{.*set;.*}$' } ).Name
         # Loop through settable properties and assign value if present in $ParameterAttribute
         Foreach ( $AttribName in $AttribNames ){
             If ( $ParameterAttribute.$AttribName ) { $ParamAttrib.$AttribName = $ParameterAttribute.$AttribName }
