@@ -111,11 +111,11 @@ Function Add-GPLink {
     Param(
 
         [Parameter( Position = 0 )]
-        [ValidateScript( { Get-ADDomain $_ } )]
+        [ValidateScript( { Get-ADDomain $_ } )] # verify TargetDomain is reachable
         [String] $TargetDomain = $env:USERDNSDOMAIN,
         
         [Parameter()]
-        [ValidateScript( { $_ -match '^(?:OU=[^,]+,?)+$' } )]
+        [ValidateScript( { $_ -match '^(?:OU=[^,]+,?)+$' } )] # match any number of OU=xxx,OU=yyy...
         [String] $SearchBase,
         
         [Parameter()]
@@ -124,14 +124,14 @@ Function Add-GPLink {
         [Parameter()]
         [Switch] $RegexEscape,
         
-        [Parameter( ParameterSetName = 'Add'     )]
+        [Parameter( ParameterSetName = 'Add' )]
         [ValidateSet('before','after')]
         [String] $RelativeLinkPos,
         
-        [Parameter( ParameterSetName = 'Replace')]
+        [Parameter( ParameterSetName = 'Replace' )]
         [Switch] $ReplaceLink,
         
-        [Parameter( ParameterSetName = 'AddWithOrder'  )]
+        [Parameter( ParameterSetName = 'AddWithOrder' )]
         [ValidateRange( 1, 999 )] # maximum number of linked GPOs is 1000 due to size limitation of the GPLink attribute...
         [Int32] $LinkOrder,
         
@@ -152,49 +152,74 @@ Function Add-GPLink {
 
     DynamicParam {
 
+        # To enable tab expansion for ReferenceGPO and NewGPO, create a hash of all GPO names in TargetDomain and add this
+        # as a ValidateSet to both parameters.
+
+        # GPOHash contains the GPO names for the ValidateSet.
+        # GuidHash is used to resolve linked GPOs from the GPLink attribute. Usually one would search these with a
+        # Where clause in the GPOHash. But in domains wit a large number of GPOs, that's way too slow. The GuidHash
+        # allows direct access to all GPOs by Guid.
+
         $GPOHash = @{}
         $GuidHash = @{}
-        $GPOs = Sort-Object -InputObject ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
+        $GPOs = Sort-Object ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
         Foreach ( $GPO in $GPOs ) {
             $GPOHash[ $GPO.DisplayName ] = $GPO
             $GuidHash[ $GPO.Id.Guid ] = $GPO
         }
 
-        $ParamOptions = @(
+        # Create the DynamicParam Array. Each array member is a hashtable containing the parmeter definition.
+        # ParameterAttributes is an embedded Array of hashtables containing the attributes for each ParameterSet.
+        # The comments for the ReferenceGPO parameter definition show some commonly used attributes.
+
+        # Parameter references:
+        # https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_functions_advanced_parameters
+        # https://docs.microsoft.com/en-us/powershell/scripting/developer/cmdlet/validating-parameter-input
+        # https://docs.microsoft.com/en-us/powershell/scripting/developer/cmdlet/parameter-attribute-declaration
+
+        $DynamicParameters = @(
             @{
                 Name = 'ReferenceGPO'
-                ValidateSetOptions = $GPOHash.Keys
+                # ValidateCount = @( [int]Min, [int]Max )
+                # ValidateLenght = @( [int]Min, [int]Max )
+                # ValidateRange = @( [int]Min, [int]Max )
+                # ValidateSet = @( 'a', 'b', 'c' )
+                ValidateSet = $GPOHash.Keys
                 ParameterAttributes = @(
                     @{
+                        # ParameterSetName = 'a'
+                        # Mandatory = $True
+                        # ValueFromPipeline = $True
+                        # ValueFromPipelineByPropertyName = $True
                         Mandatory = $True
                     }
                 )
             },
             @{
                 Name = 'NewGPO'
-                ValidateSetOptions = $GPOHash.Keys
+                ValidateSet = $GPOHash.Keys
                 ParameterAttributes = @(
                     @{
-                        Mandatory = $True
                         ParameterSetName = 'Add'
+                        Mandatory = $True
                     },
                     @{
-                        Mandatory = $True
                         ParameterSetName = 'Replace'
+                        Mandatory = $True
                     },
                     @{
-                        Mandatory = $True
                         ParameterSetName = 'AddWithOrder'
+                        Mandatory = $True
                     }
                 )
             }
         )
     
-        # Create the dictionary
+        # Create and populate the parameter dictionary
         $RuntimeParameterDictionary = New-Object System.Management.Automation.RuntimeDefinedParameterDictionary
-        Foreach( $Param in $ParamOptions ) {
-            $RuntimeParameter = New-DynamicParameter @Param
-            $RuntimeParameterDictionary.Add( $Param.Name, $RuntimeParameter )
+        Foreach( $DynamicParameter in $DynamicParameters ) {
+            $RuntimeParameter = New-DynamicParameter @DynamicParameter
+            $RuntimeParameterDictionary.Add( $DynamicParameter.Name, $RuntimeParameter )
         }
 
         Return $RuntimeParameterDictionary
@@ -257,46 +282,49 @@ Function Add-GPLink {
 
                 $UpdateLink = $False
 
-                # Need LinkOrder of both GPOs if we want to replace the current link or link before/after.
+                # Need current LinkOrder of both GPOs if we want to link before/after or replace.
                 $SourceGPOLink = $GPLinks[ $SourceGPO.Id.Guid ]
                 $SourceGPOLinkOrder = $SourceGPOLink.Order
                 $TargetGPOLink = $GPLinks[ $TargetGPO.Id.Guid ] # might be empty if not already linked
                 $TargetGPOLinkOrder = $TargetGPOLink.Order 
                 
-                # link of new gpo defaults to same as old gpo
-                $TargetGPONewLinkOrder = $SourceGPOLinkOrder
-
                 If ( $ReplaceLink -Or $RelativeLinkPos ) {
 
-                    # Need to fix LinkOrder if NewGPO is already linked above ReferenceGPO... Removing moves ReferenceGPO one position to top...
-                    If ( $TargetGPOLinkOrder -and $TargetGPOLinkOrder -lt $SourceGPOLinkOrder ) { $TargetGPONewLinkOrder -= 1 }
+                    # link order of new gpo defaults to same as old gpo (will be inserted above)
+                    $TargetGPONewLinkOrder = $SourceGPOLinkOrder
+
+                    # Need to fix LinkOrder if NewGPO is already linked above ReferenceGPO. Removing moves ReferenceGPO one position to top...
+                    If ( $TargetGPOLinkOrder -and $TargetGPOLinkOrder -lt $SourceGPOLinkOrder ) { $TargetGPONewLinkOrder-- }
 
                     # If NewGPO should be linked below ReferenceGPO, add 1 position.
-                    If ( $RelativeLinkPos -match 'after' ) {
-                        $TargetGPONewLinkOrder += 1
-                    }
+                    If ( $RelativeLinkPos -match 'after' ) { $TargetGPONewLinkOrder++ }
 
                 } ElseIf ( $LinkOrder ) {
 
-                    # static link order specified via parameter
-                    $TargetGPONewLinkOrder = $LinkOrder
+                    # Static link order, make sure $LinkOrder does not exceed the number of currently linked GPOs...
+                    $TargetGPONewLinkOrder = [Math]::Min( $LinkOrder, $GPLinks.Count + 1 )
 
                 } Else {
 
-                    If ( -not $TargetGPOLinkOrder ) {
-                        # still no link order? append at the bottom.
-                        $TargetGPONewLinkOrder = $GPLinks.Count + 1
-                    } Else {
-                        # already linked, simply keep current link order
+                    If ( $TargetGPOLinkOrder ) {
+
+                        # Already linked, keep current link order
                         $TargetGPONewLinkOrder = $TargetGPOLinkOrder
+
+                    } Else {
+
+                        # Not already linked and no order specified through parameters? Then append at the bottom.
+                        $TargetGPONewLinkOrder = $GPLinks.Count + 1
+
                     }
 
                 }
 
-                # verify if the existing link must be updated at all
-                If ( ( $TargetGPOLinkOrder -ne $TargetGPONewLinkOrder ) -or
-                     ( $LinkEnabled -ne [Microsoft.GroupPolicy.EnableLink]::Unspecified -and $GPLinks[ $TargetGPO.Id.Guid ].Enabled -ne $LinkEnabled ) -or
-                     ( $Enforced -ne [Microsoft.GroupPolicy.EnforceLink]::Unspecified -and $GPLinks[ $TargetGPO.Id.Guid ].Enforced -ne $Enforced )
+                # verify if the existing link must be updated
+                If ( 
+                        ( $TargetGPOLinkOrder -ne $TargetGPONewLinkOrder ) -or
+                        ( $LinkEnabled -ne [Microsoft.GroupPolicy.EnableLink]::Unspecified -and $TargetGPOLink.Enabled -ne $LinkEnabled ) -or
+                        ( $Enforced -ne [Microsoft.GroupPolicy.EnforceLink]::Unspecified -and $TargetGPOLink.Enforced -ne $Enforced )
                     ) {
                     $UpdateLink = $True
                 }
@@ -307,8 +335,8 @@ Function Add-GPLink {
                     Order = $TargetGPONewLinkOrder
                     LinkEnabled = $LinkEnabled
                     Enforced = $Enforced
+                    ErrorAction = 'Stop'
                 }
-
 
                 If ( $TargetGPOLinkOrder ) {
 
@@ -323,7 +351,7 @@ Function Add-GPLink {
                 }
             }
 
-            If ( $ReplaceLink -Or $RemoveLink ) { Remove-GPLink -Guid $SourceGPO.Id -Target $OU.DistinguishedName @GPParms }
+            If ( $ReplaceLink -Or $RemoveLink ) { Remove-GPLink -Guid $SourceGPO.Id -Target $OU.DistinguishedName @GPParms -ErrorAction 'Stop' }
 
         }
 
@@ -349,16 +377,28 @@ Function New-DynamicParameter {
         [Parameter()][ValidateNotNullOrEmpty()]
         [Type] $Type = [String],
 
-        [ValidateNotNullOrEmpty()][Parameter()]
-        [Array] $ValidateSetOptions,
+        [Parameter()][ValidateNotNullOrEmpty()][ValidateCount( 2, 2 )]
+        [Int[]] $ValidateCount,
+        
+        [Parameter()][ValidateNotNullOrEmpty()][ValidateCount( 2, 2 )]
+        [Int[]] $ValidateLength,
+        
+        [Parameter()][ValidateNotNullOrEmpty()]
+        [String] $ValidatePattern,
+
+        [Parameter()][ValidateNotNullOrEmpty()][ValidateCount( 2, 2 )]
+        [Int[]] $ValidateRange,
+
+        [Parameter()][ValidateNotNullOrEmpty()]
+        [Scriptblock] $ValidateScript,
+
+        [Parameter()][ValidateNotNullOrEmpty()]
+        [Array] $ValidateSet,
 
         [Parameter()][ValidateNotNullOrEmpty()]
         [Switch] $ValidateNotNullOrEmpty,
 		
-        [Parameter()][ValidateNotNullOrEmpty()][ValidateCount( 2, 2 )]
-        [Int[]] $ValidateRange,
-        
-        [Parameter()]
+        [Parameter()][ValidateNotNullOrEmpty()]
         [Array] $ParameterAttributes
     )
 	
@@ -366,22 +406,26 @@ Function New-DynamicParameter {
 
     Foreach ( $ParameterAttribute in $ParameterAttributes ) {
         $ParamAttrib = New-Object System.Management.Automation.ParameterAttribute
-
-        $ParamAttrib.Mandatory = $ParameterAttribute.Mandatory
-        If ( $ParameterAttribute.Position ) { $ParamAttrib.Position = $ParameterAttribute.Position }
-        If ( $ParameterAttribute.ParameterSetName ) { $ParamAttrib.ParameterSetName = $ParameterAttribute.ParameterSetName }
-        $ParamAttrib.ValueFromPipeline = $ParameterAttribute.ValueFromPipeline
-        $ParamAttrib.ValueFromPipelineByPropertyName = $ParameterAttribute.ValueFromPipelineByPropertyName
-
+        # Get all settable properties of the $ParamAttrib object
+        $AttribNames = ( Where-Object -InputObject ( Get-Member $ParamAttrib -MemberType Property ) -FilterScript { $_.Definition -match '{.*set;.*}$' } ).Name
+        # Loop through settable properties and assign value if present in $ParameterAttribute
+        Foreach ( $AttribName in $AttribNames ){
+            If ( $ParameterAttribute.$AttribName ) { $ParamAttrib.$AttribName = $ParameterAttribute.$AttribName }
+        }
         $AttribColl.Add( $ParamAttrib )
     }
 
-    If ( $PSBoundParameters.ContainsKey( 'ValidateSetOptions' )) {
-        $AttribColl.Add(( New-Object System.Management.Automation.ValidateSetAttribute( $ValidateSetOptions ) ))
+    $ValidationAttributes = @( 'Count', 'Length', 'Pattern', 'Range', 'Script', 'Set' )
+
+    # create all validation attributes
+    Foreach ( $ValidationAttribute in $ValidationAttributes ){
+        If ( $PSBoundParameters.ContainsKey( "Validate$ValidationAttribute" )) {
+            $TypeName = 'System.Management.Automation.Validate' + $ValidationAttribute + 'Attribute'
+            $AttribColl.Add(( New-Object $TypeName -ArgumentList ( Get-Variable -Name "Validate$ValidationAttribute" ).Value ))
+        }
     }
-    If ( $PSBoundParameters.ContainsKey( 'ValidateRange' )) {
-        $AttribColl.Add(( New-Object System.Management.Automation.ValidateRangeAttribute( $ValidateRange )))
-    }
+
+    # need to handle this one separately - it does not take parameters in its constructor
     If ( $ValidateNotNullOrEmpty.IsPresent ) {
         $AttribColl.Add(( New-Object System.Management.Automation.ValidateNotNullOrEmptyAttribute ))
     }
@@ -402,13 +446,14 @@ Function Resolve-GPLinksFromHashtable{
 
     $o = 0
 
+    # GPLink has a weird format - [GPO-DN;LinkFlags][GPO-DN;LinkFlags][...]
     # remove leading [ and trailing ], then split on ][
     $GPLinks = $OU.GPLink.Substring( 1, $OU.GPLink.Length - 2 ) -split '\]\['
     $Target = $OU.DistinguishedName
 
     $Return = @{}
 
-    #we need to do reverse to get the proper link order
+    # we need to do reverse to get the proper link order - last GPO in GPLink is link order 1
     for ( $s = $GPLinks.Count - 1; $s -ge 0; $s-- ) {
         $o++
         $Order = $o
@@ -417,6 +462,7 @@ Function Resolve-GPLinksFromHashtable{
         $GpoGuid = $Matches.GpoGuid
         $Flags = $Matches.Flags
 
+        # Retrieve current GPO from GuidHash - much faster than using Where...
 		$MyGpo = $GuidHash[ $GPOGuid ]
 
 		If ( $MyGpo ) {
@@ -426,15 +472,23 @@ Function Resolve-GPLinksFromHashtable{
 			$GpoName = 'Orphaned GPLink'
             $GpoDomain = '<undefined>'
     	}
-    				
-        # Create an object for each GPOs, its links status and link order
+
+        # The GroupPolicy Link enums have the following values:
+        # 0 - unspecified (impossible for existing links)
+        # 1 - No  (link is disabled or not enforced )
+        # 2 - Yes (link is enabled or enforced)
+
+        [Microsoft.GroupPolicy.EnableLink]$Enabled   = ( ( $Flags -band 1 ) -eq 0 ) + 1     # $Flags bit 0 unset means "Link enabled"
+        [Microsoft.GroupPolicy.EnforceLink]$Enforced = ( ( $Flags -band 2 ) -eq 2 ) + 1     # $Flags bit 1 set means "Link enforced"
+
+        # Create an object for each GPOs, its link status and order
         $Return[ $GpoGuid ] = [PSCustomObject]@{
                 GPOID = $GpoGuid
                 DisplayName = $GpoName
                 Domain = $GpoDomain
                 Target = $Target
-                Enabled = ( $Flags -band 1 ) -eq 0   # $Flags bit 0 set means "link disabled", comparing to 0 to get $true/$false
-                Enforced = ( $Flags -band 2 ) -ne 0  # $Flags bit 1 set means "link enforced", comparing to 0 to get $true/$false
+                Enabled = $Enabled
+                Enforced = $Enforced
                 Order = $Order
         }
     }
