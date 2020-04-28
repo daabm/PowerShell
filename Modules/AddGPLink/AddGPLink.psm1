@@ -162,7 +162,7 @@ Function Add-GPLink {
 
         $GPOHash = @{}
         $GuidHash = @{}
-        $GPOs = Sort-Object -InputObject ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
+        $GPOs = Get-GPO -All -Domain $TargetDomain | Sort-Object -Property ModificationTime
         Foreach ( $GPO in $GPOs ) {
             $GPOHash[ $GPO.DisplayName ] = $GPO
             $GuidHash[ $GPO.Id.Guid ] = $GPO
