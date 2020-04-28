@@ -162,7 +162,7 @@ Function Add-GPLink {
 
         $GPOHash = @{}
         $GuidHash = @{}
-        $GPOs = Sort-Object ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
+        $GPOs = Sort-Object -InputObject ( Get-GPO -All -Domain $TargetDomain ) -Property ModificationTime
         Foreach ( $GPO in $GPOs ) {
             $GPOHash[ $GPO.DisplayName ] = $GPO
             $GuidHash[ $GPO.Id.Guid ] = $GPO
@@ -407,7 +407,7 @@ Function New-DynamicParameter {
     Foreach ( $ParameterAttribute in $ParameterAttributes ) {
         $ParamAttrib = New-Object System.Management.Automation.ParameterAttribute
         # Get all settable properties of the $ParamAttrib object
-        $AttribNames = ( Where-Object -InputObject ( Get-Member $ParamAttrib -MemberType Property ) -FilterScript { $_.Definition -match '{.*set;.*}$' } ).Name
+        $AttribNames = ( Where-Object -InputObject ( Get-Member -InputObject $ParamAttrib -MemberType Property ) -FilterScript { $_.Definition -match '{.*set;.*}$' } ).Name
         # Loop through settable properties and assign value if present in $ParameterAttribute
         Foreach ( $AttribName in $AttribNames ){
             If ( $ParameterAttribute.$AttribName ) { $ParamAttrib.$AttribName = $ParameterAttribute.$AttribName }
