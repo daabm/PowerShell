@@ -6,7 +6,7 @@ Updates GPO links on OUs in active directory. Takes a reference GPO whose links 
 
 ## GetUnlinkedGPOs
 
-Gets all unlinked GPOs in the targeted domain. Does not use the usual approach with Get-GPReport, because that is too slow in larger environments. Instead it crawls all GPLink attributes.'
+Gets all unlinked GPOs in the targeted domain. Does not use the usual approach with Get-GPReport, because that is too slow in larger environments. Instead it crawls all GPLink attributes.
 
 Sample results from a quite large environment - compare this to all solutions using Get-GPReport and be surprised  :smile:
 ```
