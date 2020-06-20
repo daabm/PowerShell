@@ -1,7 +1,3 @@
-# Get-UnlinkedGPOs
-
-Get all GPOs in a domain that are not linked to a SOM.
-
 <a name="Get-UnlinkedGPOs"></a>
 ## Get-UnlinkedGPOs
 ### Synopsis
@@ -10,11 +6,14 @@ Retrieves all GPOs in a domain. For each GPO, it determines whether the GPO is l
 For housekeeping reasons, you might want to get rid of GPOs that do not apply to anything. This includes unlinked GPOs as well as GPOs that have disabled links only or where both computer and user part are disabled.
 
 The Get-UnlinkedGPOs function searches a domain for these GPOs and returns the resulting GPO objects. It also adds 3 boolean properties to each returned GPO:
+
 $GPO.Unlinked: The GPO is selected because it is not linked at all
+
 $GPO.AllLinksDisabled: The GPO is selected because it has links, but all of these links are disabled
+
 $GPO.AllSettingsDisabled: The GPO is selected because all settings are disabled. Already contained in $GPO.GPOStatus, but for convenience.
 
-DYNAMIC PARAMETERS
+### DYNAMIC PARAMETERS
 
 -Domain <String>
     The domain where the operation should be performed. This must the user's current domain or a trusting domain. Tab completion searches through the list of possible target domains.

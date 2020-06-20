@@ -1,7 +1,3 @@
-# Add-GPLink
-
-Creates or removes GPO links based on reference ("template") GPOs.
-
 <a name="Add-GPLink"></a>
 ## Add-GPLink
 ### Synopsis
@@ -11,7 +7,7 @@ Sometimes, new GPOs need to be deployed everywhere a given GPO is already in use
 
 The Append-GPLink function takes a reference GPO and a new GPO (both must already exist). Then it enumerates the OUs where the reference GPO is linked. It then links the new GPO to these OUs (bottom most link order by default). Link order and link properties can be modified.
 
-DYNAMIC PARAMETERS
+### DYNAMIC PARAMETERS
 
 -ReferenceGPO <String>
     The GPO that serves as a reference. The OUs this GPO is linked to are enumerated and updated.
