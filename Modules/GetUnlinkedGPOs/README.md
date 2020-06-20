@@ -1,3 +1,7 @@
+# Get-UnlinkedGPOs
+
+Get all GPOs in a domain that are not linked to a SOM.
+
 <a name="Get-UnlinkedGPOs"></a>
 ## Get-UnlinkedGPOs
 ### Synopsis
@@ -9,23 +13,20 @@ The Get-UnlinkedGPOs function searches a domain for these GPOs and returns the r
 
 ##### $GPO.Unlinked
 The GPO is selected because it is not linked at all
-
 ##### $GPO.AllLinksDisabled
 The GPO is selected because it has links, but all of these links are disabled
-
 ##### $GPO.AllSettingsDisabled
 The GPO is selected because all settings are disabled. Already contained in $GPO.GPOStatus, but for convenience.
 
 ### Dynamic Parameters
-#### Domain [&lt;String&gt;]
-    The domain where the operation should be performed. This must the user's current domain or a trusting domain. Tab completion searches through the list of possible target domains.
+#### Domain &lt;String&gt;
+    The domain where the operation should be performed. This must the user&#39;s current domain or a trusting domain. Tab completion searches through the list of possible target domains.
 
     Required?                    true
     Position?                    1
     Default value                False
     Accept pipeline input?       false
     Accept wildcard characters?  false
-
 ### Syntax
 ```powershell
 Get-UnlinkedGPOs -Domain <string> [-IncludeDisabledLinks] [-IncludeDisabledGPOs] [<CommonParameters>]
@@ -62,4 +63,4 @@ Get-UnlinkedGPOs -Domain corp.contoso.com -IncludeDisabledLinks | Remove-GPO -Co
 ```
 
 Gets all unlinked GPOs including those with disabled links and pipes them to Remove-GPO for instant deletion (not recommended to use in the first place).
-<div style='font-size:small; color: #ccc'>Generated 20-06-2020 13:19</div>
+<div style='font-size:small; color: #ccc'>Generated 20-06-2020 14:20</div>

@@ -1,3 +1,7 @@
+# Get-UnlinkedGPOs
+
+Get all GPOs in a domain that are not linked to a SOM.
+
 <a name="Add-GPLink"></a>
 ## Add-GPLink
 ### Synopsis
@@ -18,7 +22,7 @@ The Append-GPLink function takes a reference GPO and a new GPO (both must alread
     Accept pipeline input?       false
     Accept wildcard characters?  false
 
-#### NewGPO &lt;String&gt;
+-NewGPO &lt;String&gt;
     The GPO that will be linked to the OUs where ReferenceGPO is linked.
     This parameter is required if -RemoveLink is not specified.
     Tab completion searches the list of GPOs in TargetDomain.
@@ -28,7 +32,6 @@ The Append-GPLink function takes a reference GPO and a new GPO (both must alread
     Default value                False
     Accept pipeline input?       false
     Accept wildcard characters?  false
-
 ### Syntax
 ```powershell
 Add-GPLink [[-TargetDomain] <string>] -ReferenceGPO <string> -NewGPO <string> [-SearchBase <string>] [-OUFilter <string>] [-RegexEscape] [-RelativeLinkPos <string>] [-Enforced <EnforceLink>] [-LinkEnabled <EnableLink>] [-WhatIf] [-Confirm] [<CommonParameters>]
@@ -157,4 +160,4 @@ Append-GPLink -ReferenceGPO 'Server Default Policy' -Remove
 ```
 
 Searches all OUs where the GPO named 'Server Default Policy' is linked, and removes the existing link.
-<div style='font-size:small; color: #ccc'>Generated 20-06-2020 13:21</div>
+<div style='font-size:small; color: #ccc'>Generated 20-06-2020 14:21</div>
