@@ -149,11 +149,11 @@ function Get-UnlinkedGPOs {
         Write-Verbose "Retrieving GPLink SOMs..."
 
         $ProcessingTime = ( Measure-Command { 
-            $OUDomainSOMS = Get-ADObject -LDAPFilter '(&(|((objectClass=organizationalUnit)(objectClass=domain)))(gpLink=[LDAP*))' -Properties 'GPLink' -Server $PDC
+            $OUDomainSOMS = Get-ADObject -LDAPFilter '(&(|((objectClass=organizationalUnit)(objectClass=domain)))(gpLink=[LDAP*))' -Properties 'GPLink' -Server $PDC | Select-Object -Property 'GPLink'
             If ( $OUDomainSOMS ) {
                 [void]$AllSOMs.AddRange( $OUDomainSOMS )
             }
-            $SiteSOMS = Get-ADReplicationSite -Filter * -Properties 'GPLink' -Server $PDC | Where-Object { $_.GPLink -match '^\[LDAP' }
+            $SiteSOMS = Get-ADReplicationSite -Filter * -Properties 'GPLink' -Server $PDC | Where-Object { $_.GPLink -match '^\[LDAP' } | Select-Object -Property 'GPLink'
             If ( $SiteSOMs ) {
                 [void]$AllSoms.AddRange( $SiteSoms )
             }
