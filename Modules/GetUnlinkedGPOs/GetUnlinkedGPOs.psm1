@@ -79,7 +79,7 @@ function Get-UnlinkedGPOs {
         $DomainArray = New-Object System.Collections.ArrayList
         [void]$DomainArray.Add( $env:USERDNSDOMAIN )
 
-        $Trusts = Get-ADTrust -LDAPFilter '(!(trustDirection=2))' -Properties Name -Server $env:USERDNSDOMAIN
+        $Trusts = Get-ADTrust -LDAPFilter '(!(trustDirection=2))' -Properties Name -Server $env:USERDNSDOMAIN | Select-Object -Property 'Name'
         Foreach ( $Trust in $Trusts ) {
             [void]$DomainArray.Add( $Trust.Name )
         }
