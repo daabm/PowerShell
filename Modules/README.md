@@ -11,18 +11,18 @@ Gets all unlinked GPOs in the targeted domain. Does not use the usual approach w
 Sample results from a quite large environment - compare this to all solutions using Get-GPReport and be surprised  :smile:
 ```
 VERBOSE: Retrieving GPOs...
-VERBOSE: Found 8822 GPOs in 1.1992495 seconds.
+VERBOSE: Found 8823 GPOs in 1.2907343 seconds.
 
 VERBOSE: Retrieving GPLink SOMs...
-VERBOSE: Found 4876 SOMs in 3.4228688 seconds.
+VERBOSE: Found 4876 SOMs in 3.7403677 seconds.
 
 VERBOSE: Preparing linked GPO hashtable...
-VERBOSE: GPO hashtable containing 8110 GUIDs prepared in 86.6168849 seconds.
+VERBOSE: GPO hashtable containing 8110 GUIDs prepared in 1.1557533 seconds.
 
-VERBOSE: Processing 8822 GPOs...
-VERBOSE: 8822 GPOs processed in 4.9804807 seconds.
+VERBOSE: Processing 8823 GPOs...
+VERBOSE: 8823 GPOs processed in 5.1660301 seconds.
 
-VERBOSE: 720 unlinked GPOs found.
+VERBOSE: 721 unlinked GPOs found.
 ```
 
 ## UpdateInstalledModule
