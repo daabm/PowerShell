@@ -46,9 +46,13 @@
   param
   (
     [Parameter( Position = 0,
-                ValueFromPipelineByPropertyName = $true )]
+    ValueFromPipelineByPropertyName = $true )]
     [String[]]
     $Name,
+
+    [Parameter()]
+    [ValidateSet( 'AllUsers', 'CurrentUser')]
+    [String]$Scope,
 
     [Switch]
     $Force
@@ -78,11 +82,20 @@
     # This can be one or more modules passed on the commandline,
     # or if no modules are passed, we grab all of them for checking.
 
-    If ( $Name ) {
-      $ModulesToVerify = ( Get-InstalledModule -Name $Name )
-    } else {
-      Write-Verbose -Message 'No module name specified, checking all installed modules'
-      $ModulesToVerify = ( Get-InstalledModule )
+    If ( $Scope ) {
+      If ( $Name ) {
+        $ModulesToVerify = ( Get-InstalledModule -Name $Name )
+      } else {
+        Write-Verbose -Message 'No module name specified, checking all installed modules'
+        $ModulesToVerify = ( Get-InstalledModule )
+      }
+    } Else {
+      If ( $Name ) {
+        $ModulesToVerify = ( Get-InstalledModule -Name $Name -Scope $Scope )
+      } else {
+        Write-Verbose -Message 'No module name specified, checking all installed modules'
+        $ModulesToVerify = ( Get-InstalledModule -Scope $Scope )
+      }
     }
        
     ForEach ( $CurrentModule in $ModulesToVerify ) {
@@ -141,7 +154,11 @@
     # finally update all modules in one call to Update-Module to speed up things...
     If ( $ModulesToUpdate -and $PSCmdlet.ShouldProcess( $ModulesToUpdate.Name ) )
     {
-      Update-Module -Name ( $ModulesToUpdate.Name ) -Force:$Force -ErrorAction SilentlyContinue -Verbose:$Verbose
+      If ( $Scope ) {
+        Update-Module -Name ( $ModulesToUpdate.Name ) -Force:$Force -ErrorAction SilentlyContinue -Verbose:$Verbose -Scope $Scope
+      } Else {
+        Update-Module -Name ( $ModulesToUpdate.Name ) -Force:$Force -ErrorAction SilentlyContinue -Verbose:$Verbose
+      }
     }
     
   }
