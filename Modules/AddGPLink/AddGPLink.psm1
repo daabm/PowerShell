@@ -262,7 +262,7 @@ Function Add-GPLink {
             Server = $PDC
         }
 
-        $OrganizationalUnits = Get-ADOrganizationalUnit @LDAPParms | Where-Object -FilterScript { $_.DistinguishedName -match $OUFilter }
+        $OrganizationalUnits = Get-ADOrganizationalUnit @LDAPParms | Where-Object -FilterScript { $_.DistinguishedName -match $OUFilter } | Select-Object -Property *
 
         $Counter = 0
         Foreach ( $OU in $OrganizationalUnits ) {

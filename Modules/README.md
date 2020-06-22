@@ -9,6 +9,7 @@ Updates GPO links on OUs in active directory. Takes a reference GPO whose links 
 Gets all unlinked GPOs in the targeted domain. Does not use the usual approach with Get-GPReport, because that is too slow in larger environments. Instead it crawls all GPLink attributes.
 
 Sample results from a quite large environment - compare this to all solutions using Get-GPReport and be surprised  :smile:
+
 ```
 VERBOSE: Retrieving GPOs...
 VERBOSE: Found 8823 GPOs in 1.2907343 seconds.
@@ -24,6 +25,8 @@ VERBOSE: 8823 GPOs processed in 5.1660301 seconds.
 
 VERBOSE: 721 unlinked GPOs found.
 ```
+
+That's about 10 seconds to get more than 700 unlinked GPOs in a domain with almost 9k GPOs and about 5k OUs with linked GPOs... Creating a single GPO report usually takes about 7 seconds and more, so as soon as you have more than 1 GPO in your domain, this module will outperform all others that I'm aware of.
 
 ## UpdateInstalledModule
 
