@@ -4,7 +4,7 @@
 RootModule = 'loader.psm1'
 
 # Version Number
-ModuleVersion = '1.0'
+ModuleVersion = '1.1'
 
 # Unique Module ID
 GUID = '1c4e6775-cf7b-4a5c-b8b0-61906cb033be'
@@ -22,7 +22,7 @@ Copyright = '(c) 2016 Martin Binder. All rights reserved.'
 Description = 'Updates a module from the Powershell Gallery if a newer version is available. Wraps the PowerShellGet function Update-Module and is much faster.
 This module exports 2 functions: Get-PublishedModuleVersion and Update-InstalledModule.
 Get-PublishedModuleVersion checks the most recent version of a module in the Powershell gallery. It is based on ideas from Tobias Weltner (powertheshell.com) and scriptingfee.de
-Update-InstalledModule uses this version check to prepare a list of modules that are outdated. This list then is passed on to the original Update-Module function. If there are no outdated modules found, Update-Module is not called at all.
+Update-InstalledModule uses this version check to prepare a list of modules that are outdated. This list then is passed on to the original Update-Module function. If no outdated modules are found, Update-Module is not called at all.
 The fast check for outdated versions makes it easy to include an update check in your profile script. Simply add the following two lines to your profile:
 Try { Import-Module -Name UpdateInstalledModule; Update-InstalledModule -Name <Module Names you want to automatically check and update> }
 Catch { $_ }
