@@ -4,10 +4,10 @@
 RootModule = 'loader.psm1'
 
 # Version Number
-ModuleVersion = '1.1'
+ModuleVersion = '1.2'
 
 # Unique Module ID
-GUID = '1c4e6775-cf7b-4a5c-b8b0-61906cb033be'
+GUID = '8FB07182-107A-4D06-B326-2F941DEDC1B3'
 
 # Module Author
 Author = 'Martin Binder'
@@ -16,20 +16,13 @@ Author = 'Martin Binder'
 CompanyName = ''
 
 # Copyright
-Copyright = '(c) 2016 Martin Binder. All rights reserved.'
+Copyright = '(c) 2017 Martin Binder. All rights reserved.'
 
 # Module Description
-Description = 'Updates a module from the Powershell Gallery if a newer version is available. Wraps the PowerShellGet function Update-Module and is much faster.
-This module exports 2 functions: Get-PublishedModuleVersion and Update-InstalledModule.
-Get-PublishedModuleVersion checks the most recent version of a module in the Powershell gallery. It is based on ideas from Tobias Weltner (powertheshell.com) and scriptingfee.de
-Update-InstalledModule uses this version check to prepare a list of modules that are outdated. This list then is passed on to the original Update-Module function. If no outdated modules are found, Update-Module is not called at all.
-The fast check for outdated versions makes it easy to include an update check in your profile script. Simply add the following two lines to your profile:
-Try { Import-Module -Name UpdateInstalledModule; Update-InstalledModule -Name <Module Names you want to automatically check and update> }
-Catch { $_ }
-'
+Description = 'When staging environments in a single AD, it is common to create a new identical OU structure for testing purposes. This structure should match the original one, including all child OUs and their linked GPOs. Copy-GPOLinks copies all linked GPOs from a source OU to a target OU in a given domain. Optionally, it recurses through child OUs and copies their GPOs, too. It also can create missing target child OUs automatically.'
 
 # Minimum PowerShell Version Required
-PowerShellVersion = '5.0'
+PowerShellVersion = '3.0'
 
 # Name of Required PowerShell Host
 PowerShellHostName = ''
@@ -47,7 +40,7 @@ CLRVersion = ''
 ProcessorArchitecture = ''
 
 # Required Modules (will load before this module loads)
-RequiredModules = @( 'PowerShellGet' )
+RequiredModules = @('ActiveDirectory','GroupPolicy')
 
 # Required Assemblies
 RequiredAssemblies = @()
@@ -65,7 +58,7 @@ FormatsToProcess = @()
 NestedModules = @()
 
 # List of exportable functions
-FunctionsToExport = @( 'Update-InstalledModule', 'Get-PublishedModuleVersion' )
+FunctionsToExport = @( 'Copy-GPOLinks' )
 
 # List of exportable cmdlets
 CmdletsToExport = '*'
@@ -85,8 +78,8 @@ FileList = @()
 # Private data that needs to be passed to this module
 PrivateData = @{
     PSData = @{
-        Tags=@( 'powershellget','update-module' )
-        ExternalModuleDependencies = @( 'PowershellGet' )
+        Tags=@( 'grouppolicy', 'gplink', 'gpolinks' )
+        ExternalModuleDependencies=@( 'ActiveDirectory', 'GroupPolicy' )
     }
 }
 

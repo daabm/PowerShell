@@ -76,7 +76,12 @@
     FileList = @()
     
     # Private data that needs to be passed to this module
-    PrivateData = ''
-    
+    PrivateData = @{
+        PSData = @{
+            Tags=@( 'grouppolicy','gplink', 'unlinked' )
+            ExternalModuleDependencies = @( 'GroupPolicy', 'ActiveDirectory' )
+        }
+    }
+        
     }
     
