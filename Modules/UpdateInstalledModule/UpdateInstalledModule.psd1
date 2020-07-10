@@ -47,7 +47,7 @@ CLRVersion = ''
 ProcessorArchitecture = ''
 
 # Required Modules (will load before this module loads)
-RequiredModules = @('PowerShellGet')
+RequiredModules = @( 'PowerShellGet' )
 
 # Required Assemblies
 RequiredAssemblies = @()
@@ -65,7 +65,7 @@ FormatsToProcess = @()
 NestedModules = @()
 
 # List of exportable functions
-FunctionsToExport = '*'
+FunctionsToExport = @( 'Update-InstalledModule', 'Get-PublishedModuleVersion' )
 
 # List of exportable cmdlets
 CmdletsToExport = '*'

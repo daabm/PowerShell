@@ -40,7 +40,7 @@
     ProcessorArchitecture = ''
     
     # Required Modules (will load before this module loads)
-    RequiredModules = @('GroupPolicy','ActiveDirectory')
+    RequiredModules = @( 'GroupPolicy', 'ActiveDirectory' )
     
     # Required Assemblies
     RequiredAssemblies = @()
