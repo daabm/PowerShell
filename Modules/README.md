@@ -4,6 +4,14 @@
 
 Updates GPO links on OUs in active directory. Takes a reference GPO whose links serve as a template, and a new GPO that is linked where the reference GPO is already linked. Optionally removes the link to the reference GPO.
 
+## CopyGPOLinks
+
+Takes a reference OU, grabs all linked GPOs and links them to a target OU. Optionally prepends or appends them or replaces existing links.
+
+## CopyScriptToClipboard
+
+Copies the current script or selected text in the Powershell ISE to the clipboard with syntax highlighting in Unicode, RTF and HTML.
+
 ## GetUnlinkedGPOs
 
 Gets all unlinked GPOs in the targeted domain. Does not use the usual approach with Get-GPReport, because that is too slow in larger environments. Instead it crawls all GPLink attributes.
