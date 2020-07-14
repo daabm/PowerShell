@@ -1,7 +1,3 @@
-# Get-UnlinkedGPOs
-
-Get all GPOs in a domain that are not linked to a SOM.
-
 <a name="Add-GPLink"></a>
 ## Add-GPLink
 ### Synopsis
