@@ -1,7 +1,7 @@
 $NuGetApiKey = '#######################'
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 
-[Net.WebRequest]::DefaultWebProxy = New-Object -TypeName Net.WebProxy( 'http://pro-campus.noc.fiducia.de:8080' )
+[Net.WebRequest]::DefaultWebProxy = New-Object -TypeName Net.WebProxy( '########################' )
 [Net.WebRequest]::DefaultWebProxy.Credentials = [Net.CredentialCache]::DefaultNetworkCredentials
 [Net.WebRequest]::DefaultWebProxy.BypassProxyOnLocal = $true
 
