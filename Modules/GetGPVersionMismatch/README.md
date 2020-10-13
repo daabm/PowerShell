@@ -1,6 +1,4 @@
-﻿# Get-GPVersionMismatch
-
-PowerShell module for maintenance of GPO version conflicts in AD and sysvol
+﻿# GetGPVersionMismatch
 
 <a name="Get-GPVersionMismatch"></a>
 ## Get-GPVersionMismatch
@@ -151,4 +149,4 @@ Get-GPVersionMismatch -Domain corp.contoso.com -Name "Default Domain Policy" -Re
 
 ```
 Gets the "Default Domain Policy" in the corp.contoso.com domain and checks it for a version mismatch. If a mismatch is found, a random registry value is added to administrative templates and removed immediately.
-<div style='font-size:small; color: #ccc'>Generated 13-10-2020 12:47</div>
+<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:07</div>

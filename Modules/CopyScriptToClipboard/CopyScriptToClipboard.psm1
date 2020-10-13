@@ -416,8 +416,12 @@ Function is called automatically during module import.
 Function Add-CopyScriptToISEMenu {
     If ( $script:ModuleMenuItems.Count -eq 0 ) {
         $script:ModuleMenuItems = @(
-            $psISE.CurrentPowerShellTab.AddOnsMenu.Submenus.Add( 'Copy Script to Clipboard', { Copy-ScriptToClipboard }, $null ),
-            $psISE.CurrentPowerShellTab.AddOnsMenu.Submenus.Add( 'Copy Selection to Clipboard', { Copy-SelectionToClipboard }, 'Ctrl+Shift+C' )
+            If ( $psISE.CurrentPowerShellTab.AddOnsMenu.Submenus.Actions -notmatch 'Copy-ScriptToClipboard' ) {
+                $psISE.CurrentPowerShellTab.AddOnsMenu.Submenus.Add( 'Copy Script to Clipboard', { Copy-ScriptToClipboard }, $null ),
+            }
+            If ( $psISE.CurrentPowerShellTab.AddOnsMenu.Submenus.Actions -notmatch 'Copy-SelectionToClipboard' ) {
+                $psISE.CurrentPowerShellTab.AddOnsMenu.Submenus.Add( 'Copy Selection to Clipboard', { Copy-SelectionToClipboard }, 'Ctrl+Shift+C' )
+            }
             )
     }
 }
