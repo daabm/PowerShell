@@ -57,4 +57,4 @@ Get-UnlinkedGPOs -Domain corp.contoso.com -IncludeDisabledLinks | Remove-GPO -Co
 
 ```
 Gets all unlinked GPOs including those with disabled links and pipes them to Remove-GPO for instant deletion (not recommended to use in the first place).
-<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:07</div>
+<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:18</div>

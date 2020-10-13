@@ -116,4 +116,4 @@ Get-InstalledModule | Get-PublishedModuleVersion
 
 ```
 Searches for all modules that were installed from the gallery and returns their version numbers.
-<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:07</div>
+<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:18</div>

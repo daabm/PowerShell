@@ -157,4 +157,4 @@ Append-GPLink -ReferenceGPO 'Server Default Policy' -Remove
 
 ```
 Searches all OUs where the GPO named 'Server Default Policy' is linked, and removes the existing link.
-<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:07</div>
+<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:18</div>
