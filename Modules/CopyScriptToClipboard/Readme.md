@@ -105,4 +105,4 @@ copy the complete current script.
 ```powershell
 Copy-SelectionToClipboard
 ```
-<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:18</div>
+<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:19</div>

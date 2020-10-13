@@ -129,4 +129,4 @@ Copy-GPOLinks -SourceOU 'OU=Corp,DC=Corp,DC=Contoso,DC=Com' -TargetOU 'OU=Corp-T
 
 ```
 This again works almost the same as example #2 above. But if you first ran example #3, now all OUs are present and -WhatIf will be able to fully show what GPLinks it would copy.
-<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:18</div>
+<div style='font-size:small; color: #ccc'>Generated 13-10-2020 13:19</div>
