@@ -175,12 +175,12 @@ function Get-UnlinkedGPOs {
 
                 Foreach ( $GPLink in $GPLinks ) {
 
-                    # GUID is 11...47, Flag is last char.
+                    # GUID is 11...47, Flag is last char. Substring works faster than -match or -split
                     $GpoGuid = $GPLink.Substring( 11, 36 )
                     $Flags = $GPLink.Substring( $GPLink.Length -1 )
                     $Enabled   = ( ( $Flags -band 1 ) -eq 0 )  # $Flags bit 0 unset means "Link enabled"
 
-                    # If the GPO hash already contains 1, do NOT overwrite it. This ensures
+                    # If the GPO hash already contains $Enabled, do NOT overwrite it. This ensures
                     # that if at least one link is enabled, the hash always contains 1.
                     If ( $GPLinkHash[ $GpoGuid ] -ne 1 ) {
                         $GPLinkHash[ $GpoGuid ] = $Enabled
@@ -209,7 +209,7 @@ function Get-UnlinkedGPOs {
                     $GPO.AllLinksDisabled = $True
                 }
                 # GpoStatus is 'AllSettingsDisabled'
-                If ( $IncludeDisabledGPOs -and $GPO.GPOStatus.Value__ -eq 0 ) {
+                If ( $IncludeDisabledGPOs -and $GPO.GPOStatus -eq [Microsoft.GroupPolicy]::AllSettingsDisabled ) {
                     [void]$UnlinkedGPOs.Add( $GPO )
                     $GPO.AllSettingsDisabled = $True
                 }
