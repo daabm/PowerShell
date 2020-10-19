@@ -239,7 +239,7 @@ function Get-GPVersionMismatch
                     Write-Verbose -Message "Retrieving all GPOs from server $Server"
                     [array]$GPOs = @( ( Get-GPO -All @GPParms ) ) | Select-Object -Property * 
                     If ( $PSCmdlet.ParameterSetName -eq 'GpoByName' -and $Regex.IsPresent ){
-                        Write-Verbose -Message "Filtering GPO names by regex"
+                        Write-Verbose -Message "Filtering GPO names by regex $GPOName"
                         [array]$GPOs = $GPOs | Where-Object { $_.DisplayName -match $GPOName }
                     }
                 }
@@ -255,19 +255,19 @@ function Get-GPVersionMismatch
 
             $ProcessingTime = ( Measure-Command {
                 $Counter2 = 0
-                Foreach ( $gpo in $gpos ) {
+                Foreach ( $GPO  in $GPOs ) {
                     $Counter2 += 1
                     $ActivityParms = @{
                         Activity = 'Processing GPOs on server {2} ({0}/{1})' -f $Counter2, $GPOs.Count, $Server
-                        Status = $Gpo.DisplayName
+                        Status = $GPO.DisplayName
                         PercentComplete = ( $Counter2 - 1 ) * 100 / $GPOs.Count
                     }
                     Write-Progress @ActivityParms -Id 1 -ParentId 0
 
-                    If( $GPO.User.DSVersion -ne $GPO.User.SysvolVersion -or $GPO.Computer.DSVersion -ne $GPO.Computer.SysvolVersion ) {
+                    If ( $GPO.User.DSVersion -ne $GPO.User.SysvolVersion -or $GPO.Computer.DSVersion -ne $GPO.Computer.SysvolVersion ) {
                         $ErrorGPOsOnCurrentServer += 1
-                        Add-Member -InputObject $gpo -MemberType NoteProperty -Name 'Server' -Value $Server
-                        [void]$ErrorGPOs.Add( $gpo )
+                        Add-Member -InputObject $GPO -MemberType NoteProperty -Name 'Server' -Value $Server
+                        [void]$ErrorGPOs.Add( $GPO )
                     }
                 }
             } ).TotalSeconds
@@ -304,12 +304,16 @@ function Get-GPVersionMismatch
                 If ( $ErrorGPO.Computer.DSVersion -ne $ErrorGPO.Computer.SysvolVersion ) {
                         Write-Verbose -Message "Repairing $( $ErrorGPO.DisplayName ) computer version mismatch..."
                         $null = Set-GPRegistryValue -Guid $ErrorGPO.ID -Key "HKLM\Software\FixGpoVersionMismatch" -ValueName "FixGPOVersions" -Value 1 -Type DWord @GPParms
+                        Start-Sleep -Seconds 1 # allow changes to be committed in AD and Sysvol
                         $null = Remove-GPRegistryValue -Guid $ErrorGPO.ID -Key "HKLM\Software\FixGpoVersionMismatch" -ValueName "FixGPOVersions" @GPParms
+                        Start-Sleep -Seconds 1 # allow changes to be committed in AD and Sysvol
                 }
                 If ( $ErrorGPO.User.DSVersion -ne $ErrorGPO.User.SysvolVersion ) {
                         Write-Verbose -Message "Repairing $( $ErrorGPO.DisplayName ) user version mismatch..."
                         $null = Set-GPRegistryValue -Guid $ErrorGPO.ID -Key "HKCU\Software\FixGpoVersionMismatch" -ValueName "FixGPOVersions" -Value 1 -Type DWord @GPParms
+                        Start-Sleep -Seconds 1 # allow changes to be committed in AD and Sysvol
                         $null = Remove-GPRegistryValue -Guid $ErrorGPO.ID -Key "HKCU\Software\FixGpoVersionMismatch" -ValueName "FixGPOVersions" @GPParms
+                        Start-Sleep -Seconds 1 # allow changes to be committed in AD and Sysvol
                 }
 
 
