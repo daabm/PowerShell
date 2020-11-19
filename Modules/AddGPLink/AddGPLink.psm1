@@ -83,19 +83,19 @@ This cmdlet does not return pipeline output.
 
 .EXAMPLE
 
-Append-GPLink -ReferenceGPO 'Server Default Policy' -NewGPO 'Server Addon Policy'
+Add-GPLink -ReferenceGPO 'Server Default Policy' -NewGPO 'Server Addon Policy'
 
 Searches all OUs where the GPO named 'Server Default Policy' is linked, and links the GPO named 'Server Addon Policy' to these OUs. The link will be disabled and enforced.
 
 .EXAMPLE
 
-Append-GPLink -ReferenceGPO 'Server Default Policy' -NewGPO 'Server New Default Policy' -OUFilter 'OU=Servers' -Replace -LinkOrder 1
+Add-GPLink -ReferenceGPO 'Server Default Policy' -NewGPO 'Server New Default Policy' -OUFilter 'OU=Servers' -Replace -LinkOrder 1
 
 Searches all OUs matching 'OU=Servers' where the GPO named 'Server Default Policy' is linked, and links the GPO named 'Server New Default Policy' to these OUs at position 1 . Then it removes the existing link to 'Server Default Policy'.
 
 .EXAMPLE
 
-Append-GPLink -ReferenceGPO 'Server Default Policy' -Remove
+Add-GPLink -ReferenceGPO 'Server Default Policy' -Remove
 
 Searches all OUs where the GPO named 'Server Default Policy' is linked, and removes the existing link.
 
@@ -440,7 +440,7 @@ Function Resolve-GPLinksFromHashtable{
     # https://gallery.technet.microsoft.com/scriptcenter/Get-GPlink-Function-V13-b31253b4
     [CmdletBinding()]
     Param(
-        [Parameter(Mandatory)][Microsoft.ActiveDirectory.Management.ADOrganizationalUnit] $OU,
+        [Parameter(Mandatory)]$OU,
         [Parameter(Mandatory)][System.Collections.HashTable] $GuidHash
     )
 
