@@ -231,7 +231,11 @@ Function Add-GPLink {
             New-Variable -Name $BoundParam.Key -Value $BoundParam.Value -ErrorAction 'SilentlyContinue' -Whatif:$False
         }
         $SourceGPO = $GPOHash[ $ReferenceGPO ]
-        If ( $NewGPO ) { $TargetGPO = $GPOHash[ $NewGPO ] }
+        Write-Verbose -Message ( 'Processing Source GPO {0}' -f $SourceGPO.DisplayName )
+        If ( $NewGPO ) {
+            $TargetGPO = $GPOHash[ $NewGPO ]
+            Write-Verbose -Message ( 'Processing Target GPO {0}' -f $TargetGPO.DisplayName )
+        }
 
         $Domain    = Get-ADDomain -Identity $TargetDomain
         $DomainDN  = $Domain.DistinguishedName
@@ -262,7 +266,17 @@ Function Add-GPLink {
             Server = $PDC
         }
 
-        $OrganizationalUnits = Get-ADOrganizationalUnit @LDAPParms | Where-Object -FilterScript { $_.DistinguishedName -match $OUFilter } | Select-Object -Property *
+        Write-Verbose -Message ( 'Enumerating target OUs - Searchbase: {0}' -f $LDAPSearchBase )
+        Write-Verbose -Message ( '                         LDAPFilter: {0}' -f $LDAPParms['LDAPFilter'] )
+        Write-Verbose -Message ( '                         DN Regex  : {0}' -f $OUFilter )
+
+        $OrganizationalUnits = @( ( Get-ADOrganizationalUnit @LDAPParms | Where-Object -FilterScript { $_.DistinguishedName -match $OUFilter } | Select-Object -Property * ) )
+
+        If ( $OrganizationalUnits.Count -gt 0 ) {
+            Write-Verbose -Message ( 'Found {0} OUs to process.' -f $OrganizationalUnits.Count )
+        } Else {
+            Write-Verbose -Message ( 'No OUs found under Searchbase that match Regex.' )
+        }
 
         $Counter = 0
         Foreach ( $OU in $OrganizationalUnits ) {
@@ -275,6 +289,8 @@ Function Add-GPLink {
             }
             Write-Progress @ActivityParms -Id 0 
 
+            Write-Verbose -Message ( 'Processing {0}' -f $OU.DistinguishedName )
+
             If ( -not $RemoveLink ) {
 
                 # First, get the current GPO links as a hashtable with the GPO id as key and the link properties as a custom object
@@ -286,7 +302,10 @@ Function Add-GPLink {
                 $SourceGPOLink = $GPLinks[ $SourceGPO.Id.Guid ]
                 $SourceGPOLinkOrder = $SourceGPOLink.Order
                 $TargetGPOLink = $GPLinks[ $TargetGPO.Id.Guid ] # might be empty if not already linked
-                $TargetGPOLinkOrder = $TargetGPOLink.Order 
+                $TargetGPOLinkOrder = $TargetGPOLink.Order
+
+                Write-Verbose -Message ( 'Current source GPO link order: {0}' -f $SourceGPOLinkOrder )
+                Write-Verbose -Message ( 'Current target GPO link order: {0} (might be empty if not already linked!)' -f $TargetGPOLinkOrder )
                 
                 If ( $ReplaceLink -Or $RelativeLinkPos ) {
 
@@ -320,6 +339,8 @@ Function Add-GPLink {
 
                 }
 
+                Write-Verbose -Message ( 'Updated target GPO link order: {0}' -f $TargetGPONewLinkOrder )
+
                 # verify if the existing link must be updated
                 If ( 
                         ( $TargetGPOLinkOrder -ne $TargetGPONewLinkOrder ) -or
@@ -341,7 +362,11 @@ Function Add-GPLink {
                 If ( $TargetGPOLinkOrder ) {
 
                     # NewGPO is already linked, so simply update Link if required
-                    If ( $UpdateLink ) { Set-GPLink @LinkParms @GPParms }
+                    If ( $UpdateLink ) {
+                        Set-GPLink @LinkParms @GPParms
+                    } Else {
+                        Write-Verbose -Message ( 'GPO is already linked correctly at position {0}' -f $TargetGPONewLinkOrder )
+                    }
 
                 } Else {
 
