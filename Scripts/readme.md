@@ -3,6 +3,19 @@
 Script to check a whole bunch of tcp ports on a whole bunch of computers in parallel. Compared to Test-Netconnection it is faster than light :-)
 And it also provides RPC and SSL checks.
 
+Credits go to Ryan Ries who wrote the initial RPC Port checker found in the Powershell Gallery at https://www.powershellgallery.com/packages/Test-RPC/1.0
+I changed .Connect to .BeginConnect, added the annotation string to the return array and converted it to a scriptblock.
+
+Credits go to https://stackoverflow.com/a/38729034 for how to disable server certificate validation using Invoke-WebRequest
+
+Credits go to http://blog.whatsupduck.net for the SSL protocol validation using [Net.Sockets.NetworkStream]
+
+Further credits go to lots of people helping me figuring out minor and major tweaks:
+- Use [Net.NetworkInformation.Ping] instead of Test-NetConnection to improve speed (Test-NetConnection takes 5 seconds per host)
+- Use [Net.Sockets.TCPClient] BeginConnect with AsyncWaitHandle to improve timeouts (the Connect method has a 42 second timeout)
+- Use [Net.Security.RemoteCertificateValidationCallback] to ignore certificate validation errors in the SSL port checks
+- Use Runspaces instead of Jobs to reduce memory and process footprint (Jobs run in processes where Runspaces provide threads)
+
 ### Synopsis
 Checks a list of well known ports that are required for Active Directory to work properly. Computers to test are derived from DNS resolution.
 
@@ -208,16 +221,3 @@ Depending on reverse resolution, it will possibly mess up the computer and domai
 Checks ports 80 and 443 on Computer1 and Computer2. Tries to resolve their names by checking etc\services. Will not reach out for IANA services and ports assignments because both ports can be resolved locally. Will also verify available SSL protocols on port 443 but not on port 80.
 <div style='font-size:small; color: #ccc'>Generated 12-05-2022 16:13</div>
 
-# TestDynamicRPCPorts.ps1
-
-Verbindet sich mit Port 135 eines Remote-Servers, ruft dort die Liste der RPC-Services ab und versucht sich mit jedem dieser Services zu verbinden.
-
-Ich hätte gerne noch die Namen der Services ergänzt, aber die werden aus der lokalen Registrierung ermittelt. Das geht also schief für jeden Service, den es auf dem lokalen Computer nicht gibt. Und ich habe auch keine halbwegs vollständige Liste gefunden, die ich dann halt statisch in den Code aufgenommen hätte.
-
-# TestLDAPsConnections.ps1
-
-Das gleiche wie das folgende TestSSLProtocols.ps1 - erweitert um eine Schleife, die alle DCs einer Domäne ermittelt, und einen kleinen Codeblock, der die gefundenen SSL-Zertifikate in Dateien speichern kann.
-
-# TestSSLProtocols.ps1
-
-Testet einen Computer auf einem beliebigen Port, ob eine SSL-Verbindung hergestellt werden kann und mit welchen Protokollen (SSLv2/SSLv3/TLS1.0 etc.). Die Liste der zu prüfenden Protokolle wird dynamisch aus [System.Security.Authentication.SslProtocols] ermittelt.
