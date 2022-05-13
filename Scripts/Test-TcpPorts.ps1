@@ -161,6 +161,9 @@ Further credits go to lots of people helping me figuring out minor and major twe
 - Use Runspaces instead of Jobs to reduce memory and process footprint (Jobs run in processes where Runspaces provide threads)
 
 #>
+
+#Requires -Module ActiveDirectory, DNSClient
+
 [CmdletBinding( DefaultParameterSetName = 'NotEPMOnly' )]
 Param(
     # the [URI]::CheckHostName() method returns 0 (undefined), 1 (basic), 2 (Dns), 3 (IPv4) or 4 (IPv6)
