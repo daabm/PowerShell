@@ -1,13 +1,11 @@
 <#
         .SYNOPSIS
 
-        Checks a list of well known ports that are required for Active Directory to work properly. Computers to test are derived from DNS resolution.
-
-        Alternatively checks a list of custom ports against single or multiple computers, including RPC and SSL checks.
+        Checks a list of pre definded ports against single or multiple computers or DNS domains. Alternatively checks a list of custom ports against single or multiple computers, including RPC and SSL checks.
 
         .DESCRIPTION
 
-        Often logon issues occur which are hard to track down, or spurious connectivity errors to domain controllers. This script evaluates all DCs in an environment. Then it queries defined ports against each DC, optionally including dynamic RPC endpoints and verifying SSL connectivity.
+        Often logon issues occur which are hard to track down, or spurious connectivity errors to domain controllers. When ran without parameters, this script evaluates the DNS entry for the domain of the computers it is running on. This will usually return the IP addresses of all DCs of that domain. It then queries defined ports against each DC, optionally including dynamic RPC endpoints and verifying SSL connectivity.
 
         This basic check ensures that at least no firewalls or stale DNS records are causing issues. All port checks are executed in parallel which greatly improves total processing time.
 
@@ -25,7 +23,7 @@
 
         Specify a list of computers (names or IP addresses) to check. Can also be a domain name which will resolve to multiple addresses.
         
-        If you omit this parameter, the domain of the current computer is resolved in DNS and all resulting IP addresses are checked.
+        If you omit this parameter, the domain of the current computer is resolved via DNS and all resulting IP addresses are checked.
 
         If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below). FQDNs and IP addresses are used as provided.
 
