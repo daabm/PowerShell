@@ -1,11 +1,13 @@
 <#
         .SYNOPSIS
 
-        Checks a list of pre definded ports against single or multiple computers or DNS domains. Alternatively checks a list of custom ports against single or multiple computers, including RPC and SSL checks.
+        Checks a list of well known ports that are required for Active Directory to work properly. Computers to test are derived from DNS resolution.
+
+        Alternatively checks a list of custom ports against single or multiple computers, including RPC and SSL checks.
 
         .DESCRIPTION
 
-        Often logon issues occur which are hard to track down, or spurious connectivity errors to domain controllers. When ran without parameters, this script evaluates the DNS entry for the domain of the computers it is running on. This will usually return the IP addresses of all DCs of that domain. It then queries defined ports against each DC, optionally including dynamic RPC endpoints and verifying SSL connectivity.
+        Often logon issues occur which are hard to track down, or spurious connectivity errors to domain controllers. This script evaluates all DCs in an environment. Then it queries defined ports against each DC, optionally including dynamic RPC endpoints and verifying SSL connectivity.
 
         This basic check ensures that at least no firewalls or stale DNS records are causing issues. All port checks are executed in parallel which greatly improves total processing time.
 
@@ -23,7 +25,7 @@
 
         Specify a list of computers (names or IP addresses) to check. Can also be a domain name which will resolve to multiple addresses.
         
-        If you omit this parameter, the domain of the current computer is resolved via DNS and all resulting IP addresses are checked.
+        If you omit this parameter, the domain of the current computer is resolved in DNS and all resulting IP addresses are checked.
 
         If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below). FQDNs and IP addresses are used as provided.
 
@@ -116,6 +118,10 @@
         This parameter specifies the maximum Runspace Pool size. Defaults to 1024, may be decreased if the computer is short on ressources. May as well be increased if you expect to check a huge number of ports overall.
 
         Minimum value is 64, maximum value is 4096.
+
+        .PARAMETER NonInteractive
+
+        By default, the results are passed to Out-Gridview for interactive analysis. Use this switch to suppress the Gridview, if you want to automate processing of results.
 
         .PARAMETER PassThru
 
@@ -224,7 +230,7 @@ Param(
 
     [Switch] $UseProxy,
 
-    [ValidateScript( { [URI]::IsWellFormedUriString( $_, [System.UriKind]::Absolute ) } )]
+    [ValidateScript( { [URI]::IsWellFormedUriString( $_, [UriKind]::Absolute ) } )]
     [String] $ProxyServer,
 
     [ValidateRange( 1, 30 )]
@@ -235,6 +241,8 @@ Param(
 
     [ValidateRange( 64, 4096 )]
     [Int] $MaxThreads = 1024,
+
+    [Switch] $NonInteractive,
     
     [Switch] $PassThru
 
@@ -384,7 +392,7 @@ Begin {
     811109bf-a4e1-11d1-ab54-00a0c91e9b45;WINS
     8c7daf44-b6dc-11d1-9a4c-0020af6e7c57;Application Management service
     91ae6020-9e3c-11cf-8d7c-00aa00c091be;Zertifikatsdienst
-    e67ab081-9844-3521-9d32-834f038001c0;Client Services fÃ¼r NetWare
+    e67ab081-9844-3521-9d32-834f038001c0;Client Services für NetWare
     8d0ffe72-d252-11d0-bf8f-00c04fd9126b;Cryptoservices IKeySvc
     68b58241-c259-4f03-a2e5-a2651dcbc930;Cryptoservices IKeySvc2
     0d72a7d4-6148-11d1-b4aa-00c04fb66ea0;Cryptoservices ICertProtect
@@ -399,11 +407,11 @@ Begin {
     45776b01-5956-4485-9f80-f428f7d60129;DNS Client
     c681d488-d850-11d0-8c52-00c04fd90f7e;EFS
     ea0a3165-4834-11d2-a6f8-00c04fa346cc;Fax Service
-    4b324fc8-1670-01d3-1278-5a47bf6ee188;File Server fÃ¼r Macintosh
+    4b324fc8-1670-01d3-1278-5a47bf6ee188;File Server für Macintosh
     d335b8f6-cb31-11d0-b0f9-006097ba4e54;IPSec Policy Agent
     57674cd0-5200-11ce-a897-08002b2e9c6d;License Logging service
     342cfd40-3c6c-11ce-a893-08002b2e9c6d;License Logging service
-    3f99b900-4d87-101b-99b7-aa0004007f07;Microsoft SQL Server Ã¼ber RPC
+    3f99b900-4d87-101b-99b7-aa0004007f07;Microsoft SQL Server über RPC
     c9378ff1-16f7-11d0-a0b2-00aa0061426a;Protected storage IPStoreProv
     11220835-5b26-4d94-ae86-c3e475a809de;Protected storage ICryptProtect
     5cbe92cb-f4be-45c9-9fc9-33e73e557b20;Protected storage PasswordRecovery
@@ -783,6 +791,10 @@ Begin {
 
     # Array to keep track of each and every port we checked eventually
     $GlobalPortList = [Collections.Hashtable]::new()
+    
+    # Array of column names to use in Out-Gridview - cannot use $GlobalPortList there because
+    # EPM port columns only have a name, no port number.
+    $GlobalPortColumns = [Collections.ArrayList]::new()
 
     # Array to collect results in the End{} block
     $ResultList = [Collections.ArrayList]::new()
@@ -818,6 +830,7 @@ Process {
                 SSLJob = $null
         })
         $GlobalPortList[ $Port ] = $PortName
+        [void] $GlobalPortColumns.Add( "$($Port)/$($PortName)" )
     }
 
     # if we want to verify SSL, make sure all SSLPorts are present in our PortList
@@ -841,6 +854,7 @@ Process {
                         SSLJob = $null
                 })
                 $GlobalPortList[ $Port ] = $PortName
+                [void] $GlobalPortColumns.Add( "$($Port)/$($PortName)" )
             }
         }
     }
@@ -859,13 +873,14 @@ Process {
             Foreach ( $Port in $PortList | Where-Object { $_.Name -eq '(n/a)' } ) {
                 $Port.Name = $Services.registry.record | Select-Object -Property 'name', 'number', 'protocol' | Where-Object { $_.number -eq $Port.Number -and $_.protocol -eq 'tcp' } | Select-Object -ExpandProperty 'name'
                 $GlobalPortList[ $Port ] = $Port.Name
+                [void] $GlobalPortColumns.Add( "$($Port)/$($PortName)" )
             }
         } Catch {
             Write-Warning 'Failed to download service name and port number assignments from https://www.iana.org'
             $error[0].Exception | Select-Object -Property * | Out-String | ForEach-Object { Write-Warning $_ }
         }
     }
-    
+
     # build a list of all computers we want to check
     $ComputerList = [Collections.ArrayList]::new()
         
@@ -1065,6 +1080,7 @@ Process {
                 $HostEntry | Add-Member -NotePropertyMembers @{
                     $EndpointName = "$( $EpmEndPoint.Port ):$( $EpmEndPoint.State )" 
                 } -Force
+                [void] $GlobalPortColumns.Add( $EndpointName )
             }
         }
         [void] $ResultList.Add( $HostEntry )
@@ -1080,24 +1096,28 @@ End {
     $RunspacePool.Close()
     $RunspacePool.Dispose()
     
-    # If we received an array of input objects from the pipeline, we might end up with results that were checked for different ports. In that case, Out-Gridview will not work well, so we need to fixup all objects to have the same properties.
+    # If we received an array of input objects from the pipeline, we might end up with results that were checked for different ports.
+    # Out-Gridview will not work well with objects that have different properties, so we need to fix all objects to have the same properties.
+
+    # cleanup $GlobalPortColumns, may contain duplicates
+    $GlobalPortColumns = $GlobalPortColumns | Select-Object -Unique
+
     Foreach ( $Result in $ResultList ) {
-        Foreach ( $GlobalPort in $GlobalPortList.Keys ) {
+        Foreach ( $GlobalPort in $GlobalPortColumns ) {
             Try {
-                $Result | Add-Member -NotePropertyName "$($GlobalPortList[ $GlobalPort ])/$($GlobalPort)" -NotePropertyValue '(n/a)' -ErrorAction SilentlyContinue
+                $Result | Add-Member -NotePropertyName $GlobalPort -NotePropertyValue '(n/a)' -ErrorAction SilentlyContinue
             } Catch {
             }
         }
     }
     
     # Output to gridview after removing the Ports and EPM property
-    $ResultList | Select-Object -Property * -ExcludeProperty 'Ports', 'ICMPJob', 'EPMJob', 'Certificate' | Out-GridView -Title "Connection test results - source computer: $env:Computername"
-
-    # copy to clipboard
-    $ResultList | Select-Object -Property * -ExcludeProperty 'Ports', 'ICMPJob', 'EPMJob' | Set-ClipBoard
-
+    If ( -not $NonInteractive ) {
+        $ResultList | Select-Object -Property * -ExcludeProperty 'Ports', 'ICMPJob', 'EPMJob', 'Certificate' | Out-GridView -Title "Connection test results - source computer: $env:Computername"
+    }
+    
     If ( $PassThru ) {
-        $ResultList
+        $ResultList | Select-Object -Property * -ExcludeProperty 'Ports', 'ICMPJob', 'EPMJob' 
     }
 
 }
