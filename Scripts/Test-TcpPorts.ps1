@@ -250,7 +250,7 @@ Param(
 
 Begin {
 
-    Import-Module -Name DnsClient
+    Import-Module -Name DnsClient -ErrorAction Stop
 
     If ( $UseProxy -and -not $ProxyServer ) {
         Try {
@@ -909,21 +909,22 @@ Process {
     } Else {
         # explicit computers omitted, so let's verify the computer domain itself.
         $DomainList = [Collections.ArrayList]::new()
-        [void] $DomainList.Add( ( Get-CimInstance Win32_ComputerSystem -Verbose:$false ).Domain )
+        [void] $DomainList.Add( [DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain().Name )
         If ( $IncludeTrustedDomains -or $IncludeTrustingDomains ) {
-            $AllTrusts = Get-ADTrust -Filter * -Server $DomainList[0] | Select-Object -Property 'Name', 'Direction'
             $ADSearcher = [adsisearcher]::new()
-            $ADSearcher.SearchRoot = [adsi]::new( "LDAP://$ADServer" )
+            $ADSearcher.SearchRoot = [adsi]::new( "LDAP://$( $DomainList[0] )" )
             $ADSearcher.Filter = '(objectClass=trustedDomain)'
             $AllTrusts = $ADSearcher.FindAll() | Select-Object -ExpandProperty Properties
-            # [DirectoryServices.ActiveDirectory.TrustDirection]::Outbound = 1, Inbound = 2
-            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustedDomains -and $_.Direction -ne 1 } ) {
-                [void] $DomainList.Add( $Trust.Name )
+            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustedDomains -and $_.trustdirection[0] -ne [DirectoryServices.ActiveDirectory.TrustDirection]::Inbound } ) {
+                # all outbound and bidi trusts - .name is a property value collection, so pick first entry
+                [void] $DomainList.Add( $Trust.name[0] )
             }
-            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustingDomains -and $_.Direction -ne 2 } ) {
-                [void] $DomainList.Add( $Trust.Name )
+            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustingDomains -and $_.trustdirection[0] -ne [DirectoryServices.ActiveDirectory.TrustDirection]::Outbound } ) {
+                # all inbound and bidi trusts
+                [void] $DomainList.Add( $Trust.name[0] )
             }
         }
+        # Select -unique to remove duplicate bidi trusts
         Foreach ( $Domain in $DomainList | Select-Object -Unique ) {
             # if the domain does not contain a '.' (aka "is not an FQDN"), append common DNSSuffix
             # need [string] - for unknown reasons, $DomainFQDN is an array otherwise
