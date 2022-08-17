@@ -789,11 +789,7 @@ Begin {
     $RunspacePool.ApartmentState = [Threading.ApartmentState]::MTA
     $RunspacePool.Open()
 
-    # Array to keep track of each and every port we checked eventually
-    $GlobalPortList = [Collections.Hashtable]::new()
-    
-    # Array of column names to use in Out-Gridview - cannot use $GlobalPortList there because
-    # EPM port columns only have a name, no port number.
+    # Array of column names to use in Out-Gridview
     $GlobalPortColumns = [Collections.ArrayList]::new()
 
     # Array to collect results in the End{} block
@@ -813,10 +809,11 @@ Process {
     } ElseIf ( $IncludeEPM ) {
         $Ports += 135
     }
+    $EtcServices = Get-Content "$env:Windir\System32\Drivers\etc\services"
     Foreach ( $Port in $Ports | Select-Object -Unique ) {
         Try {
             # try to extract well known ports from etc\services. Get only first match (not interested in tcp or udp), first word.
-            $PortName = ( Get-Content "$env:Windir\System32\Drivers\etc\services" | Where-Object { $_ -match "$Port/(tcp|udp)" } )[0].Split( ' ' )[0]
+            $PortName = ( $EtcServices | Where-Object { $_ -match "$Port/(tcp|udp)" } )[0].Split( ' ' )[0]
         } Catch {
             $PortName = '(n/a)'
             $UnresolvedPorts = $true # remember that we could not resolve all ports in etc\services
@@ -829,7 +826,6 @@ Process {
                 VerifySSL = ( $VerifySSL -and $SSLPorts.Contains( $Port ) ) # enable VerifySSL if SSLPorts contains current port
                 SSLJob = $null
         })
-        $GlobalPortList[ $Port ] = $PortName
         [void] $GlobalPortColumns.Add( "$($Port)/$($PortName)" )
     }
 
@@ -853,7 +849,6 @@ Process {
                         VerifySSL = $true
                         SSLJob = $null
                 })
-                $GlobalPortList[ $Port ] = $PortName
                 [void] $GlobalPortColumns.Add( "$($Port)/$($PortName)" )
             }
         }
@@ -872,7 +867,6 @@ Process {
             [xml] $Services = ( Invoke-WebRequest @Parms ).Content
             Foreach ( $Port in $PortList | Where-Object { $_.Name -eq '(n/a)' } ) {
                 $Port.Name = $Services.registry.record | Select-Object -Property 'name', 'number', 'protocol' | Where-Object { $_.number -eq $Port.Number -and $_.protocol -eq 'tcp' } | Select-Object -ExpandProperty 'name'
-                $GlobalPortList[ $Port ] = $Port.Name
                 [void] $GlobalPortColumns.Add( "$($Port)/$($PortName)" )
             }
         } Catch {
@@ -1039,7 +1033,7 @@ Process {
             Write-Verbose ( 'Receiving port results for {0}/{1}' -f $Port.Name, $Port.Number )
             $Port.Status = $Port.Job.Powershell.EndInvoke( $Port.Job.AsyncResult )[0]
             $HostEntry | Add-Member -NotePropertyMembers @{
-                 "$( $Port.Name )/$( $Port.Number )" = $Port.Status 
+                 "$( $Port.Number )/$( $Port.Name )" = $Port.Status 
             } -Force
         }
         Foreach ( $Port in $HostEntry.Ports | Where-Object { $_.SSLJob }) {
