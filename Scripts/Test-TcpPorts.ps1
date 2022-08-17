@@ -188,7 +188,7 @@
 
 #>
 
-#Requires -Module ActiveDirectory, DNSClient
+#Requires -Module DNSClient
 
 [CmdletBinding( DefaultParameterSetName = 'NotEPMOnly' )]
 
@@ -249,6 +249,8 @@ Param(
 )
 
 Begin {
+
+    Import-Module -Name DnsClient
 
     If ( $UseProxy -and -not $ProxyServer ) {
         Try {
@@ -910,10 +912,15 @@ Process {
         [void] $DomainList.Add( ( Get-CimInstance Win32_ComputerSystem -Verbose:$false ).Domain )
         If ( $IncludeTrustedDomains -or $IncludeTrustingDomains ) {
             $AllTrusts = Get-ADTrust -Filter * -Server $DomainList[0] | Select-Object -Property 'Name', 'Direction'
-            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustedDomains -and $_.Direction -ne 'Inbound' } ) {
+            $ADSearcher = [adsisearcher]::new()
+            $ADSearcher.SearchRoot = [adsi]::new( "LDAP://$ADServer" )
+            $ADSearcher.Filter = '(objectClass=trustedDomain)'
+            $AllTrusts = $ADSearcher.FindAll() | Select-Object -ExpandProperty Properties
+            # [DirectoryServices.ActiveDirectory.TrustDirection]::Outbound = 1, Inbound = 2
+            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustedDomains -and $_.Direction -ne 1 } ) {
                 [void] $DomainList.Add( $Trust.Name )
             }
-            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustingDomains -and $_.Direction -ne 'Outbound' } ) {
+            Foreach ( $Trust in $AllTrusts | Where-Object { $IncludeTrustingDomains -and $_.Direction -ne 2 } ) {
                 [void] $DomainList.Add( $Trust.Name )
             }
         }
