@@ -1,190 +1,190 @@
 <#
-        .SYNOPSIS
+    .SYNOPSIS
 
-        Checks a list of well known ports that are required for Active Directory to work properly. Computers to test are derived from DNS resolution.
+    Checks a list of well known ports that are required for Active Directory to work properly. Computers to test are derived from DNS resolution.
 
-        Alternatively checks a list of custom ports against single or multiple computers, including RPC and SSL checks.
+    Alternatively checks a list of custom ports against single or multiple computers, including RPC and SSL checks.
 
-        .DESCRIPTION
+    .DESCRIPTION
 
-        Often logon issues occur which are hard to track down, or spurious connectivity errors to domain controllers. This script evaluates all DCs in an environment. Then it queries defined ports against each DC, optionally including dynamic RPC endpoints and verifying SSL connectivity.
+    Often logon issues occur which are hard to track down, or spurious connectivity errors to domain controllers. This script evaluates all DCs in an environment. Then it queries defined ports against each DC, optionally including dynamic RPC endpoints and verifying SSL connectivity.
 
-        This basic check ensures that at least no firewalls or stale DNS records are causing issues. All port checks are executed in parallel which greatly improves total processing time.
+    This basic check ensures that at least no firewalls or stale DNS records are causing issues. All port checks are executed in parallel which greatly improves total processing time.
 
-        Without any parameters, it evaluates the domain of the current computer. This domain is resolved through DNS lookup, and all IP addresses are checked for a predefined list of ports (88/135/389/445/464/636/3268/3269).
+    Without any parameters, it evaluates the domain of the current computer. This domain is resolved through DNS lookup, and all IP addresses are checked for a predefined list of ports (88/135/389/445/464/636/3268/3269).
 
-        The results are collected in an array of [PSCustomObject]. This array is piped to Out-Gridview for quick convenient analysis as well as to the clipboard for copy/paste to different targets. If you want to reuse the results, dot-source the script and grab $ComputerList.
+    The results are collected in an array of [PSCustomObject]. This array is piped to Out-Gridview for quick convenient analysis as well as to the clipboard for copy/paste to different targets. If you want to reuse the results, dot-source the script and grab $ComputerList.
 
-        The columns of the result are mostly self explaining. Since we do a lot of DNS resolution which for cnames can "change" the computername, the original value that led us to each IP Address is also preserved in the results.
+    The columns of the result are mostly self explaining. Since we do a lot of DNS resolution which for cnames can "change" the computername, the original value that led us to each IP Address is also preserved in the results.
 
-        The need for this script initially originated from complex domain environments with lots of trusts and infrastructure firewalls. Hence it has a builtin list of ports that we assume to be required for proper active directory communication to domain controllers.
+    The need for this script initially originated from complex domain environments with lots of trusts and infrastructure firewalls. Hence it has a builtin list of ports that we assume to be required for proper active directory communication to domain controllers.
 
-        Since all required parameters are pipeline aware, you can also pipe an array of objects to the script. These objects must have the required properties, at least 'Computer'. Optionally, you can use 'Ports', 'SSLPorts' and other properties. This enables you to quickly test an array of computers where each computer is tested for different ports.
+    Since all required parameters are pipeline aware, you can also pipe an array of objects to the script. These objects must have the required properties, at least 'Computer'. Optionally, you can use 'Ports', 'SSLPorts' and other properties. This enables you to quickly test an array of computers where each computer is tested for different ports.
 
-        .PARAMETER Computer
+    .PARAMETER Computer
 
-        Specify a list of computers (names or IP addresses) to check. Can also be a domain name which will resolve to multiple addresses.
-        
-        If you omit this parameter, the domain of the current computer is resolved in DNS and all resulting IP addresses are checked.
+    Specify a list of computers (names or IP addresses) to check. Can also be a domain name which will resolve to multiple addresses.
 
-        If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below). FQDNs and IP addresses are used as provided.
+    If you omit this parameter, the domain of the current computer is resolved in DNS and all resulting IP addresses are checked.
 
-        If you specify a domain name here, it will slightly mess the output, especially computer names. We don't know that you provided a domain and DNS also does not tell us that it is a domain. When we start reverse resolution for the IP addresses and there are multiple PTR records (or these PTR records resolve to names that themselves resolve to multiple host names), we are unable to extract a domain name or determine which A record is the real computername.
+    If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below). FQDNs and IP addresses are used as provided.
 
-        .PARAMETER DNSSuffix
+    If you specify a domain name here, it will slightly mess the output, especially computer names. We don't know that you provided a domain and DNS also does not tell us that it is a domain. When we start reverse resolution for the IP addresses and there are multiple PTR records (or these PTR records resolve to names that themselves resolve to multiple host names), we are unable to extract a domain name or determine which A record is the real computername.
 
-        For computers/DNS names with FQDN and for IP addresses, this parameter is ignored. All Netbios names (aka strings without dots in them) are padded with this DNS suffix. Makes things easier if you run the script interactively from a prompt :)
+    .PARAMETER DNSSuffix
 
-        If not specified, the primary dns suffix of the local computer will be used as DNSSuffix.
+    For computers/DNS names with FQDN and for IP addresses, this parameter is ignored. All Netbios names (aka strings without dots in them) are padded with this DNS suffix. Makes things easier if you run the script interactively from a prompt :)
 
-        .PARAMETER IncludeTrustedDomains
+    If not specified, the primary dns suffix of the local computer will be used as DNSSuffix.
 
-        If you do not specify computers to check, the domain of the current computer is verified. If you specify this switch, all domains that the current computer's domain is trusting will be also checked.
+    .PARAMETER IncludeTrustedDomains
 
-        If you specified one or more computers, this switch is ignored.
+    If you do not specify computers to check, the domain of the current computer is verified. If you specify this switch, all domains that the current computer's domain is trusting will be also checked.
 
-        .PARAMETER IncludeTrustingDomains
+    If you specified one or more computers, this switch is ignored.
 
-        If you do not specify computers to check, all domain controllers of the domain of the current computer are verified. If you specify this switch, all domains that trust the current computer's domain will be also checked.
+    .PARAMETER IncludeTrustingDomains
 
-        If you specified one or more computers, this switch is ignored.
+    If you do not specify computers to check, all domain controllers of the domain of the current computer are verified. If you specify this switch, all domains that trust the current computer's domain will be also checked.
 
-        .PARAMETER Ports
+    If you specified one or more computers, this switch is ignored.
 
-        By default, a predefined list of ports is checked (88/135/389/445/464/636/3268/3269). If you want to check a custom port range, provide an array of port numbers to check. You can specify port numbers in a range from 1 to 65535. All port numbers are by default resolved to their names against etc/services.
+    .PARAMETER Ports
 
-        If you need a different set of ports to be checked by default, edit the script and modify the Ports parameter array to your needs.
+    By default, a predefined list of ports is checked (88/135/389/445/464/636/3268/3269). If you want to check a custom port range, provide an array of port numbers to check. You can specify port numbers in a range from 1 to 65535. All port numbers are by default resolved to their names against etc/services.
 
-        .PARAMETER ResolvePortNames
+    If you need a different set of ports to be checked by default, edit the script and modify the Ports parameter array to your needs.
 
-        If you provide a custom port list and some of these cannot be resolved to their well known service name via etc\services, the script will download the current list of all defined services from IANA and resolve the ports to their names.
+    .PARAMETER ResolvePortNames
 
-        Note: The list of well known ports is downloaded directly from IANA - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml
-        Since this list contains more than 14.000 entries, this may take a while (4 MB). And of course this only works if you have internet connectivity.
+    If you provide a custom port list and some of these cannot be resolved to their well known service name via etc\services, the script will download the current list of all defined services from IANA and resolve the ports to their names.
 
-        .PARAMETER IncludeEPM
+    Note: The list of well known ports is downloaded directly from IANA - https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xml
+    Since this list contains more than 14.000 entries, this may take a while (4 MB). And of course this only works if you have internet connectivity.
 
-        Add this switch to query all dynamic RPC ports from the RPC endpoint mapper. This of course only works if EPM itself (TCP/135) is reachable. If you add this switch, EPM itself will be added to the list of ports to check if it is missing.
+    .PARAMETER IncludeEPM
 
-        This comes in extremely handy if you have systems with different RPC port ranges combined with infrastructure firewalls, like we do. Some of them are in the 5000 range, some in the 9000 range and some in the default range of 49152-65535. So we are required to not only know that we need RPC, but also  which RPC range our target computer uses.
+    Add this switch to query all dynamic RPC ports from the RPC endpoint mapper. This of course only works if EPM itself (TCP/135) is reachable. If you add this switch, EPM itself will be added to the list of ports to check if it is missing.
 
-        .PARAMETER ResolveEPM
+    This comes in extremely handy if you have systems with different RPC port ranges combined with infrastructure firewalls, like we do. Some of them are in the 5000 range, some in the 9000 range and some in the default range of 49152-65535. So we are required to not only know that we need RPC, but also  which RPC range our target computer uses.
 
-        By default, all enumerated EPM ports will only be listed with their annotation or (if missing - not all endpoints have an annotation) their interface UUID. Some of the frequent endpoints are resolved with a static list that is hardcoded into the script.
+    .PARAMETER ResolveEPM
 
-        Usually unresolved GUIDs can be found through a web search. If you specify this switch, EPM port UUIDs will be checked against two lists found at https://raw.githubusercontent.com/csandker/RPCDump/main/CPP-RPCDump/rpc_resolve.h and https://gist.githubusercontent.com/masthoon/510dd757b21f04da47431e9d4e0a3f6e/raw/e8aac11140a36ef27423331fd3cd100ea4ecda7b/rpc_dump_rs4.txt. I could not find a better source that was accessible for a script.
+    By default, all enumerated EPM ports will only be listed with their annotation or (if missing - not all endpoints have an annotation) their interface UUID. Some of the frequent endpoints are resolved with a static list that is hardcoded into the script.
 
-        .PARAMETER EPMOnly
+    Usually unresolved GUIDs can be found through a web search. If you specify this switch, EPM port UUIDs will be checked against two lists found at https://raw.githubusercontent.com/csandker/RPCDump/main/CPP-RPCDump/rpc_resolve.h and https://gist.githubusercontent.com/masthoon/510dd757b21f04da47431e9d4e0a3f6e/raw/e8aac11140a36ef27423331fd3cd100ea4ecda7b/rpc_dump_rs4.txt. I could not find a better source that was accessible for a script.
 
-        Omit checking default ports, only check 135 and RPC endpoints.
+    .PARAMETER EPMOnly
 
-        .PARAMETER VerifySSL
+    Omit checking default ports, only check 135 and RPC endpoints.
 
-        By default, all port checks only validate basic reachability. If you specify this switch, the ports 636 (LDAP over SSL) and 3289 (global catalog over SSL) are also checked for the SSL protocols they accept. Valid protocols are enumerated from [Security.Authentication.SslProtocols]
+    .PARAMETER VerifySSL
 
-        The certificate and DNS names from the remote SSL certificate are also added to the results.
+    By default, all port checks only validate basic reachability. If you specify this switch, the ports 636 (LDAP over SSL) and 3289 (global catalog over SSL) are also checked for the SSL protocols they accept. Valid protocols are enumerated from [Security.Authentication.SslProtocols]
 
-        .PARAMETER SSLPorts
+    The certificate and DNS names from the remote SSL certificate are also added to the results.
 
-        If you want to check distinct ports for SSL connectivity, you can provide an array of port numbers. Without VerifySSL, this parameter has no effect. If a port listed here is not already listed in Ports, it will be added.
+    .PARAMETER SSLPorts
 
-        If you omit this parameter, the default ports 636 and 3289 will be checked.
+    If you want to check distinct ports for SSL connectivity, you can provide an array of port numbers. Without VerifySSL, this parameter has no effect. If a port listed here is not already listed in Ports, it will be added.
 
-        .PARAMETER UseProxy
+    If you omit this parameter, the default ports 636 and 3289 will be checked.
 
-        By default, the downloads to resolve service names and RPC endpoint names use a direct internet connection. Enable this switch to use a proxy server. If required, use the -ProxyServer switch to specify the proxy to use.
-        If a static proxy is configured in control panel, it will be used. If not, netsh winhttp proxy will be used. If both are undefined, no proxy will be used unless you specify one.
+    .PARAMETER UseProxy
 
-        .PARAMETER ProxyServer
+    By default, the downloads to resolve service names and RPC endpoint names use a direct internet connection. Enable this switch to use a proxy server. If required, use the -ProxyServer switch to specify the proxy to use.
+    If a static proxy is configured in control panel, it will be used. If not, netsh winhttp proxy will be used. If both are undefined, no proxy will be used unless you specify one.
 
-        If you need to use a different proxy than configured in control panel or netsh winhttp, specify 'http://<name>:<port>'.
+    .PARAMETER ProxyServer
 
-        .PARAMETER Timeout
+    If you need to use a different proxy than configured in control panel or netsh winhttp, specify 'http://<name>:<port>'.
 
-        By default, the timeout for all ICMP and port checks is 1 seconds. You can override this timeout using this parameter. The minimum value is 1, the maximum value is 30.
+    .PARAMETER Timeout
 
-        .PARAMETER MinThreads
+    By default, the timeout for all ICMP and port checks is 1 seconds. You can override this timeout using this parameter. The minimum value is 1, the maximum value is 30.
 
-        The script uses runspaces to execute all connectivity checks in parallel.
+    .PARAMETER MinThreads
 
-        This parameter specifies the mimimum Runspace Pool size. Defaults to 128, may be decreased if the computer is short on ressources. May as well be increased if you expect to check a huge number of ports overall.
+    The script uses runspaces to execute all connectivity checks in parallel.
 
-        Minimum value is 16, maximum value is 1024.
+    This parameter specifies the mimimum Runspace Pool size. Defaults to 128, may be decreased if the computer is short on ressources. May as well be increased if you expect to check a huge number of ports overall.
 
-        .PARAMETER MaxThreads
+    Minimum value is 16, maximum value is 1024.
 
-        The script uses runspaces to execute all connectivity checks in parallel.
+    .PARAMETER MaxThreads
 
-        This parameter specifies the maximum Runspace Pool size. Defaults to 1024, may be decreased if the computer is short on ressources. May as well be increased if you expect to check a huge number of ports overall.
+    The script uses runspaces to execute all connectivity checks in parallel.
 
-        Minimum value is 64, maximum value is 4096.
+    This parameter specifies the maximum Runspace Pool size. Defaults to 1024, may be decreased if the computer is short on ressources. May as well be increased if you expect to check a huge number of ports overall.
 
-        .PARAMETER NonInteractive
+    Minimum value is 64, maximum value is 4096.
 
-        By default, the results are passed to Out-Gridview for interactive analysis. Use this switch to suppress the Gridview, if you want to automate processing of results.
+    .PARAMETER NonInteractive
 
-        .PARAMETER PassThru
+    By default, the results are passed to Out-Gridview for interactive analysis. Use this switch to suppress the Gridview, if you want to automate processing of results.
 
-        By default, nothing is returned by this script. Add this switch if you want to retrieve the resulting array for further processing.
+    .PARAMETER PassThru
 
-        .EXAMPLE
+    By default, nothing is returned by this script. Add this switch if you want to retrieve the resulting array for further processing.
 
-        .\Test-TcpPorts.ps1 -IncludeEPM
+    .EXAMPLE
 
-        Verifies the domain of the current computer against the builtin domain list. Then evaluates all IP addresses and verifies a pre defined port list against these. It also checks all dynamic RPC endpoints.
+    .\Test-TcpPorts.ps1 -IncludeEPM
 
-        .EXAMPLE
+    Verifies the domain of the current computer against the builtin domain list. Then evaluates all IP addresses and verifies a pre defined port list against these. It also checks all dynamic RPC endpoints.
 
-        'corp','tailspintoys.com' | .\Test-TcpPorts.ps1 -DNSSuffix 'contoso.com'
+    .EXAMPLE
 
-        Enumerates all IP Addresses for the provided names after appending the DNSSuffix 'contoso.com' to 'corp' and verifies a pre defined port list against these. Since this are domain names, they will resolve to IP addresses of all domain controllers.
+    'corp','tailspintoys.com' | .\Test-TcpPorts.ps1 -DNSSuffix 'contoso.com'
 
-        Depending on reverse resolution, it will possibly mess up the computer and domain names since we cannot know we are checking a domain (there's no flag for "I am a domain" in its DNS entry).
+    Enumerates all IP Addresses for the provided names after appending the DNSSuffix 'contoso.com' to 'corp' and verifies a pre defined port list against these. Since this are domain names, they will resolve to IP addresses of all domain controllers.
 
-        .EXAMPLE
+    Depending on reverse resolution, it will possibly mess up the computer and domain names since we cannot know we are checking a domain (there's no flag for "I am a domain" in its DNS entry).
 
-        .\Test-TcpPorts.ps1 'Computer1','Computer2' -CustomPorts 80,443 -ResolvePortNames -VerifySSL -SSLPorts 443
+    .EXAMPLE
 
-        Checks ports 80 and 443 on Computer1 and Computer2. Tries to resolve their names by checking etc\services. Will not reach out for IANA services and ports assignments because both ports can be resolved locally. Will also verify available SSL protocols on port 443 but not on port 80.
+    .\Test-TcpPorts.ps1 'Computer1','Computer2' -CustomPorts 80,443 -ResolvePortNames -VerifySSL -SSLPorts 443
 
-        .EXAMPLE
+    Checks ports 80 and 443 on Computer1 and Computer2. Tries to resolve their names by checking etc\services. Will not reach out for IANA services and ports assignments because both ports can be resolved locally. Will also verify available SSL protocols on port 443 but not on port 80.
 
-        @( [PSCustomObject]@{ Computer='Server1'; Ports=@( 135,445 ) }, [PSCustomObject]@{ Computer = 'Server2'; Ports = @( 80, 443 ) } ) | .\Test-TcpPorts.ps1
+    .EXAMPLE
 
-        Checks ports 135 and 445 on Server1 and ports 80 and 443 on Server2. For ports that were not checked on a computer, it shows '(n/a)' as result.
+    @( [PSCustomObject]@{ Computer='Server1'; Ports=@( 135,445 ) }, [PSCustomObject]@{ Computer = 'Server2'; Ports = @( 80, 443 ) } ) | .\Test-TcpPorts.ps1
 
-        .INPUTS
+    Checks ports 135 and 445 on Server1 and ports 80 and 443 on Server2. For ports that were not checked on a computer, it shows '(n/a)' as result.
 
-        [String[]]
+    .INPUTS
 
-        One or more computer names or IP addresses to check. If omitted, checks the domain of the current computer.
+    [String[]]
 
-        [Object[]]
+    One or more computer names or IP addresses to check. If omitted, checks the domain of the current computer.
 
-        An array of objects that have the properties required for the script. This includes at least 'computer', but can also include 'ports', 'sslports' and others.
+    [Object[]]
 
-        .OUTPUTS
+    An array of objects that have the properties required for the script. This includes at least 'computer', but can also include 'ports', 'sslports' and others.
 
-        [PSCustomObject[]]
+    .OUTPUTS
 
-        A custom object for each computer that was checked. Each object contains the corresponding input string, the DNS name it resolved to, its IP address, and a column for each checked port.
+    [PSCustomObject[]]
 
-        If SSL was checked, it contains a column for each port and protocol combination as well as a column for all DNS names in the certificate. In the raw results ($ComputerList), there's also the certificate itself present.
+    A custom object for each computer that was checked. Each object contains the corresponding input string, the DNS name it resolved to, its IP address, and a column for each checked port.
 
-        .NOTES
+    If SSL was checked, it contains a column for each port and protocol combination as well as a column for all DNS names in the certificate. In the raw results ($ComputerList), there's also the certificate itself present.
 
-        Credits go to Ryan Ries who wrote the initial RPC Port checker found in the Powershell Gallery at https://www.powershellgallery.com/packages/Test-RPC/1.0
-        I changed .Connect to .BeginConnect, added the annotation string to the return array and converted it to a scriptblock.
+    .NOTES
 
-        Credits go to https://stackoverflow.com/a/38729034 for how to disable server certificate validation using Invoke-WebRequest
+    Credits go to Ryan Ries who wrote the initial RPC Port checker found in the Powershell Gallery at https://www.powershellgallery.com/packages/Test-RPC/1.0
+    I changed .Connect to .BeginConnect, added the annotation string to the return array and converted it to a scriptblock.
 
-        Credits go to http://blog.whatsupduck.net for the SSL protocol validation using [Net.Sockets.NetworkStream]
+    Credits go to https://stackoverflow.com/a/38729034 for how to disable server certificate validation using Invoke-WebRequest
 
-        Further credits go to lots of people helping me figuring out minor and major tweaks:
-        - Use [Net.NetworkInformation.Ping] instead of Test-NetConnection to improve speed (Test-NetConnection takes 5 seconds per host)
-        - Use [Net.Sockets.TCPClient] BeginConnect with AsyncWaitHandle to improve timeouts (the Connect method has a 42 second timeout)
-        - Use [Net.Security.RemoteCertificateValidationCallback] to ignore certificate validation errors in the SSL port checks
-        - Use Runspaces instead of Jobs to reduce memory and process footprint (Jobs run in processes where Runspaces provide threads)
+    Credits go to http://blog.whatsupduck.net for the SSL protocol validation using [Net.Sockets.NetworkStream]
+
+    Further credits go to lots of people helping me figuring out minor and major tweaks:
+    - Use [Net.NetworkInformation.Ping] instead of Test-NetConnection to improve speed (Test-NetConnection takes 5 seconds per host)
+    - Use [Net.Sockets.TCPClient] BeginConnect with AsyncWaitHandle to improve timeouts (the Connect method has a 42 second timeout)
+    - Use [Net.Security.RemoteCertificateValidationCallback] to ignore certificate validation errors in the SSL port checks
+    - Use Runspaces instead of Jobs to reduce memory and process footprint (Jobs run in processes where Runspaces provide threads)
 
 #>
 
@@ -321,130 +321,125 @@ Begin {
     }    
 
 
-    $RpcUUIDs = [Collections.Hashtable]::new()
-    $EPMNames = @'
-    c9ac6db5-82b7-4e55-ae8a-e464ed7b4277;SessEnvPublicRpc SysNotify
-    b12fd546-c875-4b41-97d8-950487662202;SessEnvPrivateRpc VHDManage
-    1257b580-ce2f-4109-82d6-a9459d0bf6bc;SessEnvPrivateRpc RpcShadow2
-    29770a8f-829b-4158-90a2-78cd488501f7;SessEnvPrivateRpc TSSDFarmRpcGrantUserTSAccessRight
-    d95afe70-a6d5-4259-822e-2c84da1ddb0d;WindowsShutdown
-    338CD001-2244-31F1-AAAA-900038001003;WinReg
-    367abb81-9844-35f1-ad32-98f038001003;Service Control Manager
-    469d6ec0-0d87-11ce-b13f-00aa003bac6c;MS Exchange System Attendant Public
-    83d72bf0-0d89-11ce-b13f-00aa003bac6c;MS Exchange System Attendant Private
-    f930c514-1215-11d3-99a5-00a0c9b61b04;MS Exchange System Attendant Cluster
-    1544f5e0-613c-11d1-93df-00c04fd7bd09;MS Exchange Directory RFR, DSReferral
-    f5cc5a18-4264-101a-8c59-08002b2f8426;Active Directory Name Service Provider (NSP), DSProxy
-    f5cc5a7c-4264-101a-8c59-08002b2f8426;Active Directory Extended Directory Service (XDS)
-    a4f1db00-ca47-1067-b31e-00dd010662da;Exchange Server STORE ADMIN
-    89742ace-a9ed-11cf-9c0c-08002be7ae86;Exchange Server STORE ADMIN
-    99e64010-b032-11d0-97a4-00c04fd6551d;Exchange Server STORE ADMIN
-    1453c42c-0fa6-11d2-a910-00c04f990f3b;Microsoft Information Store
-    0e4a0156-dd5d-11d2-8c2f-00c04fb6bcde;Microsoft Information Store
-    10f24e8e-0fa6-11d2-a910-00c04f990f3b;Microsoft Information Store
-    a4f1db00-ca47-1067-b31f-00dd010662da;Exchange 2003 Server STORE EMSMDB
-    9e8ee830-4459-11ce-979b-00aa005ffebe;MS Exchange MTA 'MTA'
-    38a94e72-a9bc-11d2-8faf-00c04fa378ff;MS Exchange MTA 'QAdmin'
-    f5cc59b4-4264-101a-8c59-08002b2f8426;NtFrs Service
-    d049b186-814f-11d1-9a3c-00c04fc9b232;NtFrs API
-    a00c021c-2be2-11d2-b678-0000f87a8f8e;PerfFRS
-    97f83d5c-1994-11d1-a90d-00c04fb960f8;InetInfo
-    a520d06e-11de-11d2-ab59-00c04fa3590c;InetInfo
-    82ad4280-036b-11cf-972c-00aa006887b0;InetInfo
-    8cfb5d70-31a4-11cf-a7d8-00805f48a135;IIS SMTP
-    4f82f460-0e21-11cf-909e-00805f48a135;IIS NNTP
-    2465e9e0-a873-11d0-930b-00a0c90ab17c;IIS IMAP4
-    1be617c0-31a5-11cf-a7d8-00805f48a135;IIS POP3
-    70b51430-b6ca-11d0-b9b9-00a0c922e750;IMSAdminBase
-    a9e69612-b80d-11d0-b9b9-00a0c922e750;IADMCOMSINK
-    1ff70682-0a51-30e8-076d-740be8cee98b;Taskplaner atsvc
-    378e52b0-c0a9-11cf-822d-00aa0051e40f;Taskplaner sasec
-    0a74ef1c-41a4-4e06-83ae-dc74fb1cdd53;Taskplaner idletask
-    ecec0d70-a603-11d0-96b1-00a0c91ece3;Active Directory backup 
-    16e0cf3a-a604-11d0-96b1-00a0c91ece30;Active Directory restore
-    12345778-1234-abcd-ef00-0123456789ac;LSASS Protected Storage
-    e3514235-4b06-11d1-ab04-00c04fc2dcd2;MS NT Directory DRS
-    12345778-1234-abcd-ef00-0123456789ab;LSASS
-    12345678-1234-abcd-ef00-01234567cffb;LSASS
-    12345678-1234-abcd-ef00-0123456789ab;Spooler Service
-    906b0ce0-c70b-1067-b317-00dd010662da;IPSec Policy agent
-    50abc2a4-574d-40b3-9d66-ee4fd5fba076;DNS Server
-    e1af8308-5d1f-11c9-91a4-08002b14a0fa;RPC Endpoint Mapper
-    1cbcad78-df0b-4934-b558-87839ea501c9;Active Directory DSRole
-    7c44d7d4-31d5-424c-bd5e-2b3e1f323d22;Active Directory dsaop
-    6bffd098-a112-3610-9833-012892020162;Computer Browser
-    9b8699ae-0e44-47b1-8e7f-86a461d7ecdc;DCOM Server Process Launcher
-    4fc742e0-4a10-11cf-8273-00aa004ae673;DFS
-    68dcd486-669e-11d1-ab0c-00c04fc2dcd2;Inter-site Messaging service
-    130ceefb-e466-11d1-b78b-00c04fa32883;Active Directory ISM IP Transport
-    fdb3a030-065f-11d1-bb9b-00a024ea5525;Message Queuing and Distributed Transaction Coordinator qmcomm
-    76d12b80-3467-11d3-91ff-0090272f9ea3;Message Queuing and Distributed Transaction Coordinator qmcomm2
-    1088a980-eae5-11d0-8d9b-00a02453c337;Message Queuing and Distributed Transaction Coordinator qm2qm
-    5b5b3580-b0e0-11d1-b92d-0060081e87f0;Message Queuing and Distributed Transaction Coordinator qmrepl
-    41208ee0-e970-11d1-9b9e-00e02c064c39;Message Queuing and Distributed Transaction Coordinator
-    906b0ce0-c70b-1067-b317-00dd010662da;MS DTC OLE Transactions interface proxy
-    17fdd703-1827-4e34-79d4-24a55c53bb37;Messenger service
-    5a7b91f8-ff00-11d0-a9b2-00c04fb6e6fc;Messenger service
-    2f5f3220-c126-1076-b549-074d078619da;NetDDE
-    d6d70ef0-0e3b-11cb-acc3-08002b1d29c3;RPC locator service NsiS
-    d3fbb514-0e3b-11cb-8fad-08002b1d29c3;NsiC
-    d6d70ef0-0e3b-11cb-acc3-08002b1d29c4;NsiM
-    86d35949-83c9-4044-b424-db363231fd0c;Taskplaner ITaskSchedulerService
-    45f52c28-7f9f-101a-b52b-08002b2efabe;WINS
-    811109bf-a4e1-11d1-ab54-00a0c91e9b45;WINS
-    8c7daf44-b6dc-11d1-9a4c-0020af6e7c57;Application Management service
-    91ae6020-9e3c-11cf-8d7c-00aa00c091be;Zertifikatsdienst
-    e67ab081-9844-3521-9d32-834f038001c0;Client Services für NetWare
-    8d0ffe72-d252-11d0-bf8f-00c04fd9126b;Cryptoservices IKeySvc
-    68b58241-c259-4f03-a2e5-a2651dcbc930;Cryptoservices IKeySvc2
-    0d72a7d4-6148-11d1-b4aa-00c04fb66ea0;Cryptoservices ICertProtect
-    f50aac00-c7f3-428e-a022-a6b71bfb9d43;Cryptoservices ICatDBSvc
-    3c4728c5-f0ab-448b-bda1-6ce01eb0a6d5;DHCP Client LRPC Endpoint DNSResolver
-    3c4728c5-f0ab-448b-bda1-6ce01eb0a6d6;DHCP Server dhcpcsvc6
-    6bffd098-a112-3610-9833-46c3f874532d;DHCP Server dhcpsrv
-    5b821720-f63b-11d0-aad2-00c04fc324db;DHCP Server dhcpsrv2
-    300f3532-38cc-11d0-a3f0-0020af6b0add;Distributed Link Tracking Client
-    4da1c422-943d-11d1-acae-00c04fc2aa3f;Distributed Link Tracking Client
-    65a93890-fab9-43a3-b2a5-1e330ac28f11;DNS Client
-    45776b01-5956-4485-9f80-f428f7d60129;DNS Client
-    c681d488-d850-11d0-8c52-00c04fd90f7e;EFS
-    ea0a3165-4834-11d2-a6f8-00c04fa346cc;Fax Service
-    4b324fc8-1670-01d3-1278-5a47bf6ee188;File Server für Macintosh
-    d335b8f6-cb31-11d0-b0f9-006097ba4e54;IPSec Policy Agent
-    57674cd0-5200-11ce-a897-08002b2e9c6d;License Logging service
-    342cfd40-3c6c-11ce-a893-08002b2e9c6d;License Logging service
-    3f99b900-4d87-101b-99b7-aa0004007f07;Microsoft SQL Server über RPC
-    c9378ff1-16f7-11d0-a0b2-00aa0061426a;Protected storage IPStoreProv
-    11220835-5b26-4d94-ae86-c3e475a809de;Protected storage ICryptProtect
-    5cbe92cb-f4be-45c9-9fc9-33e73e557b20;Protected storage PasswordRecovery
-    3dde7c30-165d-11d1-ab8f-00805f14db40;Protected storage BackupKey
-    8f09f000-b7ed-11ce-bbd2-00001a181cad;Routing and Remote Access
-    12b81e99-f207-4a4c-85d3-77b42f76fd14;Secondary Logon service
-    93149ca2-973b-11d1-8c39-00c04fb984f9;Security Configuration Editor Engine
-    4b112204-0e19-11d3-b42b-0000f81feb9f;SSDP Discovery Service service
-    63fbe424-2029-11d1-8db8-00aa004abd5e;System Event Notification SensApi
-    629b9f66-556c-11d1-8dd2-00aa004abd5e;System Event Notification SENSNotify
-    2f5f6520-ca46-1067-b319-00dd010662da;Telephony service TAPI
-    2f59a331-bf7d-48cb-9ec5-7c090d76e8b8;Terminal Server Service
-    5ca4a760-ebb1-11cf-8611-00a0245420ed;Terminal Server winstation
-    c8cb7687-e6d3-11d2-a958-00c04f682e16;WebClient DAV-Service WebDAV
-    3faf4738-3a21-4307-b46c-fdda9bb8c0d5;Windows Audio audiosrv
-    c386ca3e-9061-4a72-821e-498d83be188f;Windows Audio Audiorpc
-    83da7c00-e84f-11d2-9807-00c04f8ec850;Windows File Protection SFC
-    06bba54a-be05-49f9-b0a0-30f790261023;Windows Security Center
-    8fb6d884-2388-11d0-8c35-00c04fda2795;Windows Time w32time
-    894de0c0-0d55-11d3-a322-00c04fa321a1;WinLogon InitShutdown
-    369ce4f0-0fdc-11d3-bde8-00c04f8eee78;Winlogon Profile Mapper pmapapi
-    a002b3a0-c9b7-11d1-ae88-0080c75e4ec1;Winlogon GetUserToken
-    95958c94-a424-4055-b62b-b7f4d5c47770;Winlogon IRPCSCLogon
-    4825ea41-51e3-4c2a-8406-8f2d2698395f;Winlogon IProfileDialog
-    326731e3-c1c0-4a69-ae20-7d9044a4ea5c;Winlogon IUserProfile
-    621dff68-3c39-4c6c-aae3-e68e2c6503ad;Windows Wireless Configuration
-    2f5f6521-cb55-1059-b446-00df0bce31db;unimodem LRPC Endpoint
-    3473dd4d-2e88-4006-9cba-22570909dd1;WinHttp Auto-Proxy Service
-'@ -split "`r`n" | ConvertFrom-Csv -Delimiter ';' -Header @( 'GUID', 'Name')
-    Foreach ( $EPMName in $EPMNames ){
-        $RpcUUIDs[ $EPMName.GUID ] = $EPMName.Name
+    $RpcUUIDs = @{
+        "06bba54a-be05-49f9-b0a0-30f790261023" = "Windows Security Center"
+        "0a74ef1c-41a4-4e06-83ae-dc74fb1cdd53" = "Taskplaner idletask"
+        "0d72a7d4-6148-11d1-b4aa-00c04fb66ea0" = "Cryptoservices ICertProtect"
+        "0e4a0156-dd5d-11d2-8c2f-00c04fb6bcde" = "Microsoft Information Store"
+        "1088a980-eae5-11d0-8d9b-00a02453c337" = "Message Queuing and Distributed Transaction Coordinator qm2qm"
+        "10f24e8e-0fa6-11d2-a910-00c04f990f3b" = "Microsoft Information Store"
+        "11220835-5b26-4d94-ae86-c3e475a809de" = "Protected storage ICryptProtect"
+        "12345678-1234-abcd-ef00-0123456789ab" = "Spooler Service"
+        "12345678-1234-abcd-ef00-01234567cffb" = "LSASS"
+        "12345778-1234-abcd-ef00-0123456789ab" = "LSASS"
+        "12345778-1234-abcd-ef00-0123456789ac" = "LSASS Protected Storage"
+        "1257b580-ce2f-4109-82d6-a9459d0bf6bc" = "SessEnvPrivateRpc RpcShadow2"
+        "12b81e99-f207-4a4c-85d3-77b42f76fd14" = "Secondary Logon service"
+        "130ceefb-e466-11d1-b78b-00c04fa32883" = "Active Directory ISM IP Transport"
+        "1453c42c-0fa6-11d2-a910-00c04f990f3b" = "Microsoft Information Store"
+        "1544f5e0-613c-11d1-93df-00c04fd7bd09" = "MS Exchange Directory RFR, DSReferral"
+        "16e0cf3a-a604-11d0-96b1-00a0c91ece30" = "Active Directory restore"
+        "17fdd703-1827-4e34-79d4-24a55c53bb37" = "Messenger service"
+        "1be617c0-31a5-11cf-a7d8-00805f48a135" = "IIS POP3"
+        "1cbcad78-df0b-4934-b558-87839ea501c9" = "Active Directory DSRole"
+        "1ff70682-0a51-30e8-076d-740be8cee98b" = "Taskplaner atsvc"
+        "2465e9e0-a873-11d0-930b-00a0c90ab17c" = "IIS IMAP4"
+        "29770a8f-829b-4158-90a2-78cd488501f7" = "SessEnvPrivateRpc TSSDFarmRpcGrantUserTSAccessRight"
+        "2f59a331-bf7d-48cb-9ec5-7c090d76e8b8" = "Terminal Server Service"
+        "2f5f3220-c126-1076-b549-074d078619da" = "NetDDE"
+        "2f5f6520-ca46-1067-b319-00dd010662da" = "Telephony service TAPI"
+        "2f5f6521-cb55-1059-b446-00df0bce31db" = "unimodem LRPC Endpoint"
+        "300f3532-38cc-11d0-a3f0-0020af6b0add" = "Distributed Link Tracking Client"
+        "326731e3-c1c0-4a69-ae20-7d9044a4ea5c" = "Winlogon IUserProfile"
+        "338CD001-2244-31F1-AAAA-900038001003" = "WinReg"
+        "342cfd40-3c6c-11ce-a893-08002b2e9c6d" = "License Logging service"
+        "3473dd4d-2e88-4006-9cba-22570909dd10" = "WinHttp Auto-Proxy Service"
+        "367abb81-9844-35f1-ad32-98f038001003" = "Service Control Manager"
+        "369ce4f0-0fdc-11d3-bde8-00c04f8eee78" = "Winlogon Profile Mapper pmapapi"
+        "378e52b0-c0a9-11cf-822d-00aa0051e40f" = "Taskplaner sasec"
+        "38a94e72-a9bc-11d2-8faf-00c04fa378ff" = "MS Exchange MTA 'QAdmin'"
+        "3c4728c5-f0ab-448b-bda1-6ce01eb0a6d5" = "DHCP Client LRPC Endpoint DNSResolver"
+        "3c4728c5-f0ab-448b-bda1-6ce01eb0a6d6" = "DHCP Server dhcpcsvc6"
+        "3dde7c30-165d-11d1-ab8f-00805f14db40" = "Protected storage BackupKey"
+        "3f99b900-4d87-101b-99b7-aa0004007f07" = "Microsoft SQL Server ?ber RPC"
+        "3faf4738-3a21-4307-b46c-fdda9bb8c0d5" = "Windows Audio audiosrv"
+        "41208ee0-e970-11d1-9b9e-00e02c064c39" = "Message Queuing and Distributed Transaction Coordinator"
+        "45776b01-5956-4485-9f80-f428f7d60129" = "DNS Client"
+        "45f52c28-7f9f-101a-b52b-08002b2efabe" = "WINS"
+        "469d6ec0-0d87-11ce-b13f-00aa003bac6c" = "MS Exchange System Attendant Public"
+        "4825ea41-51e3-4c2a-8406-8f2d2698395f" = "Winlogon IProfileDialog"
+        "4b112204-0e19-11d3-b42b-0000f81feb9f" = "SSDP Discovery Service service"
+        "4b324fc8-1670-01d3-1278-5a47bf6ee188" = "File Server f?r Macintosh"
+        "4da1c422-943d-11d1-acae-00c04fc2aa3f" = "Distributed Link Tracking Client"
+        "4f82f460-0e21-11cf-909e-00805f48a135" = "IIS NNTP"
+        "4fc742e0-4a10-11cf-8273-00aa004ae673" = "DFS"
+        "50abc2a4-574d-40b3-9d66-ee4fd5fba076" = "DNS Server"
+        "57674cd0-5200-11ce-a897-08002b2e9c6d" = "License Logging service"
+        "5a7b91f8-ff00-11d0-a9b2-00c04fb6e6fc" = "Messenger service"
+        "5b5b3580-b0e0-11d1-b92d-0060081e87f0" = "Message Queuing and Distributed Transaction Coordinator qmrepl"
+        "5b821720-f63b-11d0-aad2-00c04fc324db" = "DHCP Server dhcpsrv2"
+        "5ca4a760-ebb1-11cf-8611-00a0245420ed" = "Terminal Server winstation"
+        "5cbe92cb-f4be-45c9-9fc9-33e73e557b20" = "Protected storage PasswordRecovery"
+        "621dff68-3c39-4c6c-aae3-e68e2c6503ad" = "Windows Wireless Configuration"
+        "629b9f66-556c-11d1-8dd2-00aa004abd5e" = "System Event Notification SENSNotify"
+        "63fbe424-2029-11d1-8db8-00aa004abd5e" = "System Event Notification SensApi"
+        "65a93890-fab9-43a3-b2a5-1e330ac28f11" = "DNS Client"
+        "68b58241-c259-4f03-a2e5-a2651dcbc930" = "Cryptoservices IKeySvc2"
+        "68dcd486-669e-11d1-ab0c-00c04fc2dcd2" = "Inter-site Messaging service"
+        "6bffd098-a112-3610-9833-012892020162" = "Computer Browser"
+        "6bffd098-a112-3610-9833-46c3f874532d" = "DHCP Server dhcpsrv"
+        "70b51430-b6ca-11d0-b9b9-00a0c922e750" = "IMSAdminBase"
+        "76d12b80-3467-11d3-91ff-0090272f9ea3" = "Message Queuing and Distributed Transaction Coordinator qmcomm2"
+        "7c44d7d4-31d5-424c-bd5e-2b3e1f323d22" = "Active Directory dsaop"
+        "811109bf-a4e1-11d1-ab54-00a0c91e9b45" = "WINS"
+        "82ad4280-036b-11cf-972c-00aa006887b0" = "InetInfo"
+        "83d72bf0-0d89-11ce-b13f-00aa003bac6c" = "MS Exchange System Attendant Private"
+        "83da7c00-e84f-11d2-9807-00c04f8ec850" = "Windows File Protection SFC"
+        "86d35949-83c9-4044-b424-db363231fd0c" = "Taskplaner ITaskSchedulerService"
+        "894de0c0-0d55-11d3-a322-00c04fa321a1" = "WinLogon InitShutdown"
+        "89742ace-a9ed-11cf-9c0c-08002be7ae86" = "Exchange Server STORE ADMIN"
+        "8c7daf44-b6dc-11d1-9a4c-0020af6e7c57" = "Application Management service"
+        "8cfb5d70-31a4-11cf-a7d8-00805f48a135" = "IIS SMTP"
+        "8d0ffe72-d252-11d0-bf8f-00c04fd9126b" = "Cryptoservices IKeySvc"
+        "8f09f000-b7ed-11ce-bbd2-00001a181cad" = "Routing and Remote Access"
+        "8fb6d884-2388-11d0-8c35-00c04fda2795" = "Windows Time w32time"
+        "906b0ce0-c70b-1067-b317-00dd010662da" = "IPSec Policy agent"
+        "91ae6020-9e3c-11cf-8d7c-00aa00c091be" = "Zertifikatsdienst"
+        "93149ca2-973b-11d1-8c39-00c04fb984f9" = "Security Configuration Editor Engine"
+        "95958c94-a424-4055-b62b-b7f4d5c47770" = "Winlogon IRPCSCLogon"
+        "97f83d5c-1994-11d1-a90d-00c04fb960f8" = "InetInfo"
+        "99e64010-b032-11d0-97a4-00c04fd6551d" = "Exchange Server STORE ADMIN"
+        "9b8699ae-0e44-47b1-8e7f-86a461d7ecdc" = "DCOM Server Process Launcher"
+        "9e8ee830-4459-11ce-979b-00aa005ffebe" = "MS Exchange MTA 'MTA'"
+        "a002b3a0-c9b7-11d1-ae88-0080c75e4ec1" = "Winlogon GetUserToken"
+        "a00c021c-2be2-11d2-b678-0000f87a8f8e" = "PerfFRS"
+        "a4f1db00-ca47-1067-b31e-00dd010662da" = "Exchange Server STORE ADMIN"
+        "a4f1db00-ca47-1067-b31f-00dd010662da" = "Exchange 2003 Server STORE EMSMDB"
+        "a520d06e-11de-11d2-ab59-00c04fa3590c" = "InetInfo"
+        "a9e69612-b80d-11d0-b9b9-00a0c922e750" = "IADMCOMSINK"
+        "b12fd546-c875-4b41-97d8-950487662202" = "SessEnvPrivateRpc VHDManage"
+        "c386ca3e-9061-4a72-821e-498d83be188f" = "Windows Audio Audiorpc"
+        "c681d488-d850-11d0-8c52-00c04fd90f7e" = "EFS"
+        "c8cb7687-e6d3-11d2-a958-00c04f682e16" = "WebClient DAV-Service WebDAV"
+        "c9378ff1-16f7-11d0-a0b2-00aa0061426a" = "Protected storage IPStoreProv"
+        "c9ac6db5-82b7-4e55-ae8a-e464ed7b4277" = "SessEnvPublicRpc SysNotify"
+        "d049b186-814f-11d1-9a3c-00c04fc9b232" = "NtFrs API"
+        "d335b8f6-cb31-11d0-b0f9-006097ba4e54" = "IPSec Policy Agent"
+        "d3fbb514-0e3b-11cb-8fad-08002b1d29c3" = "NsiC"
+        "d6d70ef0-0e3b-11cb-acc3-08002b1d29c3" = "RPC locator service NsiS"
+        "d6d70ef0-0e3b-11cb-acc3-08002b1d29c4" = "NsiM"
+        "d95afe70-a6d5-4259-822e-2c84da1ddb0d" = "WindowsShutdown"
+        "e1af8308-5d1f-11c9-91a4-08002b14a0fa" = "RPC Endpoint Mapper"
+        "e3514235-4b06-11d1-ab04-00c04fc2dcd2" = "MS NT Directory DRS"
+        "e67ab081-9844-3521-9d32-834f038001c0" = "Client Services f?r NetWare"
+        "ea0a3165-4834-11d2-a6f8-00c04fa346cc" = "Fax Service"
+        "ecec0d70-a603-11d0-96b1-00a0c91ece3" = "Active Directory backup "
+        "f50aac00-c7f3-428e-a022-a6b71bfb9d43" = "Cryptoservices ICatDBSvc"
+        "f5cc59b4-4264-101a-8c59-08002b2f8426" = "NtFrs Service"
+        "f5cc5a18-4264-101a-8c59-08002b2f8426" = "Active Directory Name Service Provider (NSP), DSProxy"
+        "f5cc5a7c-4264-101a-8c59-08002b2f8426" = "Active Directory Extended Directory Service (XDS)"
+        "f930c514-1215-11d3-99a5-00a0c9b61b04" = "MS Exchange System Attendant Cluster"
+        "fdb3a030-065f-11d1-bb9b-00a024ea5525" = "Message Queuing and Distributed Transaction Coordinator qmcomm"
     }
 
     If ( ( $IncludeEPM -or $EPMOnly ) -and $ResolveEPM ) {
