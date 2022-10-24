@@ -286,6 +286,9 @@ function Get-GPVersionMismatch {
 
         }
 
+    }
+
+    End {
         Write-Verbose "Collecting GPO search results..."
         Foreach ( $Server in $TargetServers ) {
             Write-Verbose "Collecting results from $( $Server.Name )"
@@ -318,11 +321,10 @@ function Get-GPVersionMismatch {
                 }
             }
         }
-    }
 
-    End {
         $RunspacePool.Close()
         $RunspacePool.Dispose()
+
         If ( $PassThru ) { 
             $ErrorGPOs
         } Else {
