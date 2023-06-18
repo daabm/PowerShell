@@ -1124,7 +1124,7 @@ Process {
                     $Port.Job = New-RunspaceJob -Pool $RunspacePool -ScriptBlock $ScriptBlockPortCheck -Arguments $ArgumentList
                     $JobsTotal += 1
                     If ( $VerifySSL -and $Port.VerifySSL ) {
-                        Write-Verbose ( 'Detaching SSL verification {0}/{1}' -f $Port.Name, $Port.Number )
+                        Write-Verbose ( 'Detaching SSL verification {0}/{1}' -f $Port.Number, $Port.Name )
                         # since we are dealing with certificates, we need to provide a name and not an IP address only
                         # (with IP addresses, certificate validation will always fail)
                         If ( $HostEntry.Name -ne '(DNS Lookup failed)' ) {
@@ -1157,14 +1157,14 @@ Process {
         Foreach ( $HostEntry in $ComputerList ) {
             If ( -not $PassThru ) { Write-Host ( 'Collecting results for computer {0}/{1} in domain {2}' -f $HostEntry.Name, $HostEntry.IPAddress, $HostEntry.Domain ) }
             Foreach ( $Port in $HostEntry.Ports | Where-Object { $_.Job }) {
-                Write-Verbose ( 'Receiving port results for {0}/{1}' -f $Port.Name, $Port.Number )
+                Write-Verbose ( 'Receiving port results for {0}/{1}' -f $Port.Number, $Port.Name )
                 $Port.Status = $Port.Job.Powershell.EndInvoke( $Port.Job.AsyncResult )[0]
                 $HostEntry | Add-Member -NotePropertyMembers @{
                         "$( $Port.Number )/$( $Port.Name )" = $Port.Status
                 } -Force
             }
             Foreach ( $Port in $HostEntry.Ports | Where-Object { $_.SSLJob }) {
-                Write-Verbose ( 'Receiving SSL results for {0}/{1}' -f $Port.Name, $Port.Number )
+                Write-Verbose ( 'Receiving SSL results for {0}/{1}' -f $Port.Number, $Port.Name )
                 $Certificate = $null
                 Foreach ( $SSLProtocol in ( $Port.SSLJob.Powershell.EndInvoke( $Port.SSLJob.AsyncResult ) | Sort-Object -Property Name )) {
                     # $SSLProtocol | Format-Table -AutoSize | Out-String -Width 300
