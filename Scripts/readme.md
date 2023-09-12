@@ -51,6 +51,21 @@ Test-TcpPorts.ps1 [[-Computer] <string[]>] [-DNSSuffix <string>] [-IncludeTruste
     Standardwert                 
     Pipelineeingaben akzeptieren?true (ByValue)
     Platzhalterzeichen akzeptieren?false
+
+#### PARAMETER SourceComputer &lt;String[]&gt;
+
+        Specify a list of computers (names, NOT IP addresses) to execute the checks from (requires Powershell remoting working through PSSession). Can NOT be a domain name or an IP address because WSMAN Authentication does not work with IP addresses.
+        
+        If you omit this parameter, all checks are ran from the local computer.
+
+        If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below)
+
+    Erforderlich?                false
+    Position?                    named
+    Standardwert
+    Pipelineeingaben akzeptieren?true (ByValue)
+    Platzhalterzeichen akzeptieren?false
+
 #### DNSSuffix &lt;String&gt;
     For computers/DNS names with FQDN and for IP addresses, this parameter is ignored. All Netbios names (aka strings without dots in them) are padded with this DNS suffix. Makes things easier if you run the script interactively from a prompt :)
     

@@ -24,7 +24,7 @@
         .PARAMETER Computer
 
         Specify a list of computers (names or IP addresses) to check. Can also be a domain name which will resolve to multiple addresses.
-        
+
         If you omit this parameter, the domain of the current computer is resolved in DNS and all resulting IP addresses are checked.
 
         If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below). FQDNs and IP addresses are used as provided.
@@ -34,7 +34,7 @@
         .PARAMETER SourceComputer
 
         Specify a list of computers (names, NOT IP addresses) to execute the checks from (requires Powershell remoting working through PSSession). Can NOT be a domain name or an IP address because WSMAN Authentication does not work with IP addresses.
-        
+
         If you omit this parameter, all checks are ran from the local computer.
 
         If you specify a plain host name (no DNS suffix), the global DNSSuffix is appended (see below).
@@ -248,6 +248,9 @@ Param(
     [Parameter( ValueFromPipelineByPropertyName = $True )]
     [Switch] $EnableCertValidation,
 
+    [Parameter()]
+    [Switch] $IgnoreICMP,
+
     [Parameter( ValueFromPipelineByPropertyName = $true )]
     [ValidateScript({ [URI]::CheckHostName( $_) -eq 'Dns' })]
     [String] $DNSSuffix = ( Get-ItemProperty 'HKLM:\system\CurrentControlSet\Services\tcpip\parameters' ).Domain,
@@ -338,12 +341,12 @@ Begin {
                     {
                         if(ServicePointManager.ServerCertificateValidationCallback ==null)
                         {
-                            ServicePointManager.ServerCertificateValidationCallback += 
+                            ServicePointManager.ServerCertificateValidationCallback +=
                                 delegate
                                 (
-                                    Object obj, 
-                                    X509Certificate certificate, 
-                                    X509Chain chain, 
+                                    Object obj,
+                                    X509Certificate certificate,
+                                    X509Chain chain,
                                     SslPolicyErrors errors
                                 )
                                 {
@@ -354,13 +357,13 @@ Begin {
                 }
 '@
 
-                Try {   
+                Try {
                     Add-Type $certCallback
                 } Catch {
                 }
             }
             [ServerCertificateValidationCallback]::Ignore()
-        }    
+        }
 
         $RpcUUIDs = @{
             "06bba54a-be05-49f9-b0a0-30f790261023" = "Windows Security Center"
@@ -594,17 +597,17 @@ Begin {
                 public static Dictionary<int, string> QueryEPM(string host)
                 {
                     Dictionary<int, string> ports_and_uuids = new Dictionary<int, string>();
-                    int retCode = 0; // RPC_S_OK 
-                                
+                    int retCode = 0; // RPC_S_OK
+
                     IntPtr bindingHandle = IntPtr.Zero;
-                    IntPtr inquiryContext = IntPtr.Zero;                
+                    IntPtr inquiryContext = IntPtr.Zero;
                     IntPtr elementBindingHandle = IntPtr.Zero;
                     RPC_IF_ID elementIfId;
                     Guid elementUuid;
                     IntPtr elementAnnotation;
 
                     try
-                    {                    
+                    {
                         retCode = RpcBindingFromStringBinding("ncacn_ip_tcp:" + host, out bindingHandle);
                         if (retCode != 0)
                             throw new Exception("RpcBindingFromStringBinding: " + retCode);
@@ -612,7 +615,7 @@ Begin {
                         retCode = RpcMgmtEpEltInqBegin(bindingHandle, 0, 0, 0, string.Empty, out inquiryContext);
                         if (retCode != 0)
                             throw new Exception("RpcMgmtEpEltInqBegin: " + retCode);
-                    
+
                         do
                         {
                             IntPtr bindString = IntPtr.Zero;
@@ -624,14 +627,14 @@ Begin {
                             retCode = RpcBindingToStringBinding(elementBindingHandle, out bindString);
                             if (retCode != 0)
                                 throw new Exception("RpcBindingToStringBinding: " + retCode);
-                            
+
                             string s = Marshal.PtrToStringAuto(bindString).Trim().ToLower();
                             string a = Marshal.PtrToStringAuto(elementAnnotation).Trim();
                             if(s.StartsWith("ncacn_ip_tcp:"))
                                 if (ports_and_uuids.ContainsKey(int.Parse(s.Split('[')[1].Split(']')[0])) == false) ports_and_uuids.Add(int.Parse(s.Split('[')[1].Split(']')[0]), elementIfId.Uuid.ToString()+';'+a.ToString() );
-                            
+
                             RpcBindingFree(ref elementBindingHandle);
-                        
+
                         }
                         while (retCode != 1772); // RPC_X_NO_MORE_ENTRIES
 
@@ -645,7 +648,7 @@ Begin {
                     {
                         RpcBindingFree(ref bindingHandle);
                     }
-                
+
                     return ports_and_uuids;
                 }
             }
@@ -699,7 +702,7 @@ Begin {
         }
 
         # run Test-NetConnection for each port on each computer that is reachable via ICMP
-        $ScriptBlockPortCheck = { 
+        $ScriptBlockPortCheck = {
             $TargetComputer = $args[0]
             $Port = $args[1]
             $Timeout = $args[2]
@@ -766,7 +769,7 @@ Begin {
             $Timeout = $args[2]
             $EnableCertValidation = $args[3]
 
-            $ProtocolNames = [Security.Authentication.SslProtocols] | 
+            $ProtocolNames = [Security.Authentication.SslProtocols] |
                 Get-Member -Static -MemberType Property |
                 Where-Object { $_.Name -notin @( 'Default', 'None' )} |
                 ForEach-Object { $_.Name }
@@ -917,7 +920,7 @@ Begin {
 
     # Array to collect results in the End{} block
     $ResultList = [Collections.ArrayList]::new()
-    
+
 }
 
 Process {
@@ -969,7 +972,7 @@ Process {
         }
 
     } Else {
-    
+
         $UnresolvedPorts = $false
 
         # create portlist from Ports, IncludeEPM/EPMOnly and SSLPorts
@@ -1048,11 +1051,11 @@ Process {
 
         # build a list of all computers we want to check
         $ComputerList = [Collections.ArrayList]::new()
-        
+
         If ( $Computer ) {
             # got explicit computers to check - verify DNS names which can resolve to multiple IPs - what a mess with CNAME and PTR :(
             Foreach ( $c in $Computer ) {
-                $ComputerList.AddRange( [array]( Resolve-DnsHost -HostEntry $c ) )
+                $ComputerList.AddRange( [array]@( Resolve-DnsHost -HostEntry $c ) )
             }
         } Else {
             # explicit computers omitted, so let's verify the computer domain itself.
@@ -1113,7 +1116,7 @@ Process {
         $JobsTotal = 0
 
         Foreach ( $HostEntry in $ComputerList ) {
-            If ( $HostEntry.ICMP -eq 'Success' ) {
+            If ( $IgnoreICMP -or ( $HostEntry.ICMP -eq 'Success' ) ) {
                 Write-Verbose ( 'Initiating connection test for computer {0}/{1} in domain {2}' -f $HostEntry.Name, $HostEntry.IPAddress, $HostEntry.Domain )
                 Foreach ( $Port in $HostEntry.Ports ) {
                     Write-Verbose ( 'Detaching port query {0}/{1}' -f $Port.Number, $Port.Name )
@@ -1121,7 +1124,7 @@ Process {
                     $Port.Job = New-RunspaceJob -Pool $RunspacePool -ScriptBlock $ScriptBlockPortCheck -Arguments $ArgumentList
                     $JobsTotal += 1
                     If ( $VerifySSL -and $Port.VerifySSL ) {
-                        Write-Verbose ( 'Detaching SSL verification {0}/{1}' -f $Port.Name, $Port.Number )
+                        Write-Verbose ( 'Detaching SSL verification {0}/{1}' -f $Port.Number, $Port.Name )
                         # since we are dealing with certificates, we need to provide a name and not an IP address only
                         # (with IP addresses, certificate validation will always fail)
                         If ( $HostEntry.Name -ne '(DNS Lookup failed)' ) {
@@ -1154,19 +1157,19 @@ Process {
         Foreach ( $HostEntry in $ComputerList ) {
             If ( -not $PassThru ) { Write-Host ( 'Collecting results for computer {0}/{1} in domain {2}' -f $HostEntry.Name, $HostEntry.IPAddress, $HostEntry.Domain ) }
             Foreach ( $Port in $HostEntry.Ports | Where-Object { $_.Job }) {
-                Write-Verbose ( 'Receiving port results for {0}/{1}' -f $Port.Name, $Port.Number )
+                Write-Verbose ( 'Receiving port results for {0}/{1}' -f $Port.Number, $Port.Name )
                 $Port.Status = $Port.Job.Powershell.EndInvoke( $Port.Job.AsyncResult )[0]
                 $HostEntry | Add-Member -NotePropertyMembers @{
-                        "$( $Port.Number )/$( $Port.Name )" = $Port.Status 
+                        "$( $Port.Number )/$( $Port.Name )" = $Port.Status
                 } -Force
             }
             Foreach ( $Port in $HostEntry.Ports | Where-Object { $_.SSLJob }) {
-                Write-Verbose ( 'Receiving SSL results for {0}/{1}' -f $Port.Name, $Port.Number )
+                Write-Verbose ( 'Receiving SSL results for {0}/{1}' -f $Port.Number, $Port.Name )
                 $Certificate = $null
                 Foreach ( $SSLProtocol in ( $Port.SSLJob.Powershell.EndInvoke( $Port.SSLJob.AsyncResult ) | Sort-Object -Property Name )) {
                     # $SSLProtocol | Format-Table -AutoSize | Out-String -Width 300
                     $HostEntry | Add-Member -NotePropertyMembers @{
-                            "$( $SSLProtocol.Port )/$( $SSLProtocol.Name )" = $SSLProtocol.State 
+                            "$( $SSLProtocol.Port )/$( $SSLProtocol.Name )" = $SSLProtocol.State
                     } -Force
                     # if we did SSL checks we have the computer name in the cert subject. If DNS lookup failed for whatever reason,
                     # we can now use the cert name instead of '(DNS Lookup failed)'
@@ -1197,7 +1200,7 @@ Process {
                         $EndpointName = $EpmEndPoint.UUID
                     }
                     $HostEntry | Add-Member -NotePropertyMembers @{
-                        $EndpointName = "$( $EpmEndPoint.Port ):$( $EpmEndPoint.State )" 
+                        $EndpointName = "$( $EpmEndPoint.Port ):$( $EpmEndPoint.State )"
                     } -Force
                     [void] $GlobalPortColumns.Add( $EndpointName )
                 }
@@ -1205,8 +1208,8 @@ Process {
             [void] $ResultList.Add( $HostEntry )
 
         }
-    } 
-       
+    }
+
     If ( -not $PassThru ) { Write-Host 'Collected all job results.' }
 
 }
@@ -1215,7 +1218,7 @@ End {
 
     $RunspacePool.Close()
     $RunspacePool.Dispose()
-    
+
     # If we received an array of input objects from the pipeline, we might end up with results that were checked for different ports.
     # Out-Gridview will not work well with objects that have different properties, so we need to fix all objects to have the same properties.
 
@@ -1230,7 +1233,7 @@ End {
             }
         }
     }
-    
+
     # Output to gridview after removing the Ports and EPM property
     If ( -not $PassThru ) {
         $ResultList | Select-Object -Property * -ExcludeProperty 'Ports', 'ICMPJob', 'EPMJob', 'Certificate' | Out-GridView -Title "Connection test results - source computer: $env:Computername"
