@@ -1052,7 +1052,7 @@ Process {
         If ( $Computer ) {
             # got explicit computers to check - verify DNS names which can resolve to multiple IPs - what a mess with CNAME and PTR :(
             Foreach ( $c in $Computer ) {
-                $ComputerList.AddRange( ( Resolve-DnsHost -HostEntry $c ) )
+                $ComputerList.AddRange( [array]( Resolve-DnsHost -HostEntry $c ) )
             }
         } Else {
             # explicit computers omitted, so let's verify the computer domain itself.
@@ -1074,7 +1074,7 @@ Process {
             }
             # Select -unique to remove duplicate bidi trusts
             Foreach ( $Domain in $DomainList | Select-Object -Unique ) {
-                $ComputerList.AddRange( ( Resolve-DnsHost -HostEntry $Domain -IsDomain ) )
+                $ComputerList.AddRange( [array]( Resolve-DnsHost -HostEntry $Domain -IsDomain ) )
             }
         }
         Write-Verbose 'Inital list of computers:'
