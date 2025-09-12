@@ -240,6 +240,110 @@ Checks ports 80 and 443 on Computer1 and Computer2. Tries to resolve their names
 
 Script to perform an authoritative Sysvol restore (aka D4) in a domain using DFSR for sysvol replication. Doing this by hand is quite time consuming if you have a large number of domain controllers...
 
+### SYNOPSIS
+
 The script performs all the steps Microsoft describes in https://learn.microsoft.com/de-de/troubleshoot/windows-server/group-policy/force-authoritative-non-authoritative-synchronization
 
-It supports Whatif, so you can look what it would do. The only optional parameter is a target domain (by default, it operates against the domain of the local computer).
+It supports Whatif, so you can look what it would do.
+
+### PARAMETERS
+#### TargetDomain &lt;String&gt;
+    The domain where DFSR should be reset.
+    
+    If not specified, the primary dns suffix of the local computer will be used as DNSSuffix.
+    
+    Erforderlich?                false
+    Position?                    named
+    Standardwert                 Get-ADDomain -Current LocalComputer
+    Pipelineeingaben akzeptieren?false
+    Platzhalterzeichen akzeptieren?false
+#### DfsrSleep &lt;Int&gt;
+    The time to wait for DFSR events after PollAD
+    
+    Erforderlich?                false
+    Position?                    named
+    Standardwert                 10
+    Pipelineeingaben akzeptieren?false
+    Platzhalterzeichen akzeptieren?false
+
+### EXAMPLES
+#### BEISPIEL 1
+```powershell
+.\Invoke-SysvolD4Restore.ps1 -Verbose
+Processing domain corp.contoso.com - found domain controllers:
+
+HostName             IsPDC
+--------             -----
+DC2.corp.contoso.com  True
+DC1.corp.contoso.com False
+
+
+
+Step 0: Checking prerequisites - DFSR management tools must be enabled on all DCs
+VERBOSE: Checking feature states on DC2.corp.contoso.com...
+VERBOSE: Checking feature states on DC1.corp.contoso.com...
+Step 1: Set dfsr to manual mode and stop on all DCs
+VERBOSE: 
+MachineName          DisplayName      Status StartType
+-----------          -----------      ------ ---------
+DC2.corp.contoso.com DFS Replication Stopped Automatic
+DC1.corp.contoso.com DFS Replication Stopped Automatic
+
+
+
+VERBOSE: 
+MachineName          DisplayName      Status StartType
+-----------          -----------      ------ ---------
+DC2.corp.contoso.com DFS Replication Stopped    Manual
+DC1.corp.contoso.com DFS Replication Stopped    Manual
+
+
+
+Step 2: Set PDC to authoritative (msDFSR-Options=1)
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+Step 3: Disable Sysvol replication
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC1,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+Step 4: Replicate AD objects from PDC to all other DCs
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC1,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+Step 5: Start dfsr on authoritative PDC
+VERBOSE: 
+MachineName          DisplayName      Status StartType
+-----------          -----------      ------ ---------
+DC2.corp.contoso.com DFS Replication Running    Manual
+
+
+
+Step 6: Check for event 4114 in DFSR event log on PDC
+VERBOSE: Performing the operation "Wait for DFSR event 4114" on target "DC2.corp.contoso.com".
+Step 7: Set msDFSR-Enabled=TRUE on PDC
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+Step 8: Replicate from PDC to all other DCs
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+Step 9: Poll AD on PDC
+VERBOSE: Successfully updated the DFSR Active Directory Domain Service configuration on the computer named DC2.corp.
+contoso.com
+Step 10: Check for event 4602 in DFSR event log on PDC
+VERBOSE: Performing the operation "Wait for DFSR event 4602" on target "DC2.corp.contoso.com".
+Step 11: start dfsr on all other DCs
+VERBOSE: 
+MachineName          DisplayName      Status StartType
+-----------          -----------      ------ ---------
+DC1.corp.contoso.com DFS Replication Running    Manual
+
+
+
+Sleeping 5 seconds to allow dfsr to initialize properly...
+Step 12: Set msDFSR-Enabled=TRUE on all other DCs and replicate to all DCs
+VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC1,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
+Step 13: Poll AD on all other DCs
+VERBOSE: Successfully updated the DFSR Active Directory Domain Service configuration on the computer named DC1.corp.
+contoso.com
+Step 14: Set dfsr to automatic on all DCs
+VERBOSE: 
+MachineName          DisplayName      Status StartType
+-----------          -----------      ------ ---------
+DC2.corp.contoso.com DFS Replication Running Automatic
+DC1.corp.contoso.com DFS Replication Running Automatic
+```

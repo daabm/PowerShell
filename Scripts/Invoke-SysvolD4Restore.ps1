@@ -15,14 +15,16 @@ DFSR authoritative restore - https://learn.microsoft.com/de-de/troubleshoot/wind
 Param(
     # Die Zieldomäne der Reparatur
     [Validatescript({ Get-ADDomain $_ })]
-    [string] $TargetDomain = ( Get-AdDomain -Current LocalComputer )
+    [string] $TargetDomain = ( Get-AdDomain -Current LocalComputer ),
+
+    # Zeit, die gewartet wird auf die DFSR PollAD Events
+    [int] $DFSRSleep = 10
 )
 
 $Domain = Get-ADDomain $TargetDomain
 $DomainDN = $Domain.DistinguishedName
 $SysvolDN = 'CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings'
 
-$DFSRSleep = 5
 $ServiceProperties = @( 'MachineName', 'DisplayName', 'Status', 'StartType' )
 
 $AllDCs = [Collections.Arraylist]::new()
@@ -51,7 +53,8 @@ $Features = @( 'FS-DFS-Namespace', 'FS-DFS-Replication' )
 
 Foreach ( $DC in $AllDCs ) {
     Write-Verbose "Checking feature states on $( $DC.HostName )..."
-    $FeatureStates = Get-WindowsFeature -Name $Features -ComputerName $DC.HostName -Verbose:$false
+    $FeatureStates = Get-WindowsFeature -Name $Features -ComputerName $DC.HostName
+    $FeatureStates | Format-Table -AutoSize | Out-String | Write-Verbose
     Foreach ( $FeatureState in $FeatureStates | Where-Object { -not $_.Installed } ) {
         Write-Warning "$( $DC.HostName ): Feature $( $FeatureState.Name ) missing, starting installation..."
         Install-WindowsFeature -Name $FeatureState.Name -ComputerName $DC.HostName
@@ -63,15 +66,15 @@ Foreach ( $DC in $AllDCs ) {
 Write-Host "Step 1: Set dfsr to manual mode and stop on all DCs" -ForegroundColor Green
 #
 
-Get-Service 'dfsr' -ComputerName $AllDCs.HostName | Stop-Service -PassThru | Select-Object -Property $ServiceProperties | Out-String | Write-Verbose
-Set-Service 'dfsr' -StartupType Manual -ComputerName $AllDCs.HostName -PassThru | Select-Object -Property $ServiceProperties | Out-String | Write-Verbose
+Get-Service 'dfsr' -ComputerName $AllDCs.HostName | Stop-Service -PassThru | Format-Table -AutoSize -Property $ServiceProperties | Out-String | Write-Verbose
+Set-Service 'dfsr' -StartupType Manual -ComputerName $AllDCs.HostName -PassThru | Format-Table -AutoSize -Property $ServiceProperties | Out-String | Write-Verbose
 
 #
 #
 Write-Host "Step 2: Set PDC to authoritative (msDFSR-Options=1)" -ForegroundColor Green
 #
 
-Set-ADObject $PDC.SysvolDN -Replace @{ 'msDFSR-options' = 1 } -Server $PDC.HostName -PassThru | Write-Verbose
+Set-ADObject $PDC.SysvolDN -Replace @{ 'msDFSR-options' = 1 } -Server $PDC.HostName
 
 #
 #
@@ -79,7 +82,7 @@ Write-Host "Step 3: Disable Sysvol replication" -ForegroundColor Green
 #
 
 Foreach ( $DC in $AllDCs ) {
-    Set-ADObject $DC.SysvolDN -Replace @{ 'msDFSR-Enabled' = $false } -Server $PDC.HostName -PassThru | Write-Verbose
+    Set-ADObject $DC.SysvolDN -Replace @{ 'msDFSR-Enabled' = $false } -Server $PDC.HostName
 }
 
 #
@@ -92,7 +95,7 @@ Foreach ( $ADObject in $AllDCs ) {
     # loop over each DC as a destination except PDC
     Foreach ( $DestinationDC in ( $AllDCs -ne $PDC )) {
         # sync all sysvol objects to the current DC
-        Sync-ADObject -Object $ADObject.SysvolDN -Source $PDC.HostName -Destination $DestinationDC.HostName -PassThru | Write-Verbose
+        Sync-ADObject -Object $ADObject.SysvolDN -Source $PDC.HostName -Destination $DestinationDC.HostName
     }
 }
 
@@ -101,7 +104,8 @@ Foreach ( $ADObject in $AllDCs ) {
 Write-Host "Step 5: Start dfsr on authoritative PDC" -ForegroundColor Green
 #
 
-$Timestamp = Get-Date
+$Timestamp = Get-EventLog -LogName 'DFS Replication' -ComputerName $PDC.HostName -Newest 1 | Select-Object -ExpandProperty TimeGenerated
+
 Start-Sleep 2 # ensure Get-Eventlog -After works correctly...
 Get-Service 'dfsr' -ComputerName $PDC.HostName | Start-Service -PassThru | Select-Object -Property $ServiceProperties | Out-String | Write-Verbose
 
@@ -130,7 +134,7 @@ If ( $PSCmdlet.ShouldProcess( $PDC.HostName, 'Wait for DFSR event 4114' )) {
 Write-Host "Step 7: Set msDFSR-Enabled=TRUE on PDC" -ForegroundColor Green
 #
 
-Set-ADObject $PDC.SysvolDN -Replace @{ 'msDFSR-Enabled' = $true } -Server $PDC.HostName -PassThru | Write-Verbose
+Set-ADObject $PDC.SysvolDN -Replace @{ 'msDFSR-Enabled' = $true } -Server $PDC.HostName
 
 #
 #
@@ -138,7 +142,7 @@ Write-Host "Step 8: Replicate from PDC to all other DCs" -ForegroundColor Green
 #
 
 Foreach ( $DestinationDC in ( $AllDCs -ne $PDC )) {
-    Sync-ADObject -Object $PDC.SysvolDN -Source $PDC.HostName -Destination $DestinationDC.HostName -PassThru | Write-Verbose
+    Sync-ADObject -Object $PDC.SysvolDN -Source $PDC.HostName -Destination $DestinationDC.HostName
 }
 
 #
@@ -146,9 +150,9 @@ Foreach ( $DestinationDC in ( $AllDCs -ne $PDC )) {
 Write-Host "Step 9: Poll AD on PDC" -ForegroundColor Green
 #
 
-$Timestamp = Get-Date
+$Timestamp = Get-EventLog -LogName 'DFS Replication' -ComputerName $PDC.HostName -Newest 1 | Select-Object -ExpandProperty TimeGenerated
 Start-Sleep 2
-Update-DfsrConfigurationFromAD -ComputerName $PDC.HostName | Write-Host -ForegroundColor Yellow
+Update-DfsrConfigurationFromAD -ComputerName $PDC.HostName
 
 #
 #
@@ -174,7 +178,7 @@ If ( $PSCmdlet.ShouldProcess( $PDC.HostName, 'Wait for DFSR event 4602' )) {
 Write-Host "Step 11: start dfsr on all other DCs" -ForegroundColor Green
 #
 
-Get-Service 'dfsr' -ComputerName ( $AllDCs -ne $PDC ).HostName | Start-Service -PassThru | Select-Object -Property $ServiceProperties | Out-String | Write-Verbose
+Get-Service 'dfsr' -ComputerName ( $AllDCs -ne $PDC ).HostName | Start-Service -PassThru | Format-Table -AutoSize -Property $ServiceProperties | Out-String | Write-Verbose
 
 # sleep only, no sense in checking for event 4114 on additional DCs...
 Write-Host "Sleeping $DFSRSleep seconds to allow dfsr to initialize properly..." -ForegroundColor Yellow
@@ -189,7 +193,7 @@ Foreach ( $ADObject in ( $AllDCs -ne $PDC )) {
     Set-ADObject $ADObject.SysvolDN -Replace @{ 'msDFSR-Enabled' = $true } -Server $PDC.HostName
     Foreach ( $DestinationDC in $AllDCs -ne $PDC ) {
         # sync current sysvol object to all other DCs
-        Sync-ADObject -Object $ADObject.SysvolDN -Source $PDC.HostName -Destination $DestinationDC.HostName -PassThru | Write-Verbose
+        Sync-ADObject -Object $ADObject.SysvolDN -Source $PDC.HostName -Destination $DestinationDC.HostName
     }
 }
 
@@ -198,7 +202,7 @@ Foreach ( $ADObject in ( $AllDCs -ne $PDC )) {
 Write-Host "Step 13: Poll AD on all other DCs" -ForegroundColor Green
 #
 
-Update-DfsrConfigurationFromAD -ComputerName ( $AllDCs -ne $PDC ).HostName | Write-Host -ForegroundColor Yellow
+Update-DfsrConfigurationFromAD -ComputerName ( $AllDCs -ne $PDC ).HostName
 
 # again no sense in checking for any events. If it works - ok. If not - check and repeat...
 
@@ -207,4 +211,4 @@ Update-DfsrConfigurationFromAD -ComputerName ( $AllDCs -ne $PDC ).HostName | Wri
 Write-Host "Step 14: Set dfsr to automatic on all DCs" -ForegroundColor Green
 #
 
-Set-Service 'dfsr' -StartupType Automatic -ComputerName $AllDCs.HostName -PassThru | Select-Object -Property $ServiceProperties | Out-String | Write-Verbose
+Set-Service 'dfsr' -StartupType Automatic -ComputerName $AllDCs.HostName -PassThru | Format-Table -AutoSize -Property $ServiceProperties | Out-String | Write-Verbose
