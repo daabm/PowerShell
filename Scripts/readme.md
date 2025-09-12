@@ -281,7 +281,27 @@ DC1.corp.contoso.com False
 
 Step 0: Checking prerequisites - DFSR management tools must be enabled on all DCs
 VERBOSE: Checking feature states on DC2.corp.contoso.com...
+VERBOSE: The operation 'Get-WindowsFeature' started: FS-DFS-Namespace,FS-DFS-Replication
+VERBOSE: The operation 'Get-WindowsFeature' succeeded: FS-DFS-Namespace,FS-DFS-Replication
+VERBOSE: 
+Display Name                Name               Install State
+------------                ----               -------------
+        [X] DFS Namespaces  FS-DFS-Namespace       Installed
+        [X] DFS Replication FS-DFS-Replication     Installed
+
+
+
 VERBOSE: Checking feature states on DC1.corp.contoso.com...
+VERBOSE: The operation 'Get-WindowsFeature' started: FS-DFS-Namespace,FS-DFS-Replication
+VERBOSE: The operation 'Get-WindowsFeature' succeeded: FS-DFS-Namespace,FS-DFS-Replication
+VERBOSE: 
+Display Name                Name               Install State
+------------                ----               -------------
+        [X] DFS Namespaces  FS-DFS-Namespace       Installed
+        [X] DFS Replication FS-DFS-Replication     Installed
+
+
+
 Step 1: Set dfsr to manual mode and stop on all DCs
 VERBOSE: 
 MachineName          DisplayName      Status StartType
@@ -300,13 +320,8 @@ DC1.corp.contoso.com DFS Replication Stopped    Manual
 
 
 Step 2: Set PDC to authoritative (msDFSR-Options=1)
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
 Step 3: Disable Sysvol replication
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC1,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
 Step 4: Replicate AD objects from PDC to all other DCs
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC1,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
 Step 5: Start dfsr on authoritative PDC
 VERBOSE: 
 MachineName          DisplayName      Status StartType
@@ -318,12 +333,9 @@ DC2.corp.contoso.com DFS Replication Running    Manual
 Step 6: Check for event 4114 in DFSR event log on PDC
 VERBOSE: Performing the operation "Wait for DFSR event 4114" on target "DC2.corp.contoso.com".
 Step 7: Set msDFSR-Enabled=TRUE on PDC
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
 Step 8: Replicate from PDC to all other DCs
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC2,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
 Step 9: Poll AD on PDC
-VERBOSE: Successfully updated the DFSR Active Directory Domain Service configuration on the computer named DC2.corp.
-contoso.com
+VERBOSE: Successfully updated the DFSR Active Directory Domain Service configuration on the computer named DC2.corp.contoso.com
 Step 10: Check for event 4602 in DFSR event log on PDC
 VERBOSE: Performing the operation "Wait for DFSR event 4602" on target "DC2.corp.contoso.com".
 Step 11: start dfsr on all other DCs
@@ -334,12 +346,10 @@ DC1.corp.contoso.com DFS Replication Running    Manual
 
 
 
-Sleeping 5 seconds to allow dfsr to initialize properly...
+Sleeping 10 seconds to allow dfsr to initialize properly...
 Step 12: Set msDFSR-Enabled=TRUE on all other DCs and replicate to all DCs
-VERBOSE: CN=SYSVOL Subscription,CN=Domain System Volume,CN=DFSR-LocalSettings,CN=DC1,OU=Domain Controllers,DC=corp,DC=contoso,DC=com
 Step 13: Poll AD on all other DCs
-VERBOSE: Successfully updated the DFSR Active Directory Domain Service configuration on the computer named DC1.corp.
-contoso.com
+VERBOSE: Successfully updated the DFSR Active Directory Domain Service configuration on the computer named DC1.corp.contoso.com
 Step 14: Set dfsr to automatic on all DCs
 VERBOSE: 
 MachineName          DisplayName      Status StartType
