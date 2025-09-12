@@ -236,3 +236,10 @@ Depending on reverse resolution, it will possibly mess up the computer and domai
 Checks ports 80 and 443 on Computer1 and Computer2. Tries to resolve their names by checking etc\services. Will not reach out for IANA services and ports assignments because both ports can be resolved locally. Will also verify available SSL protocols on port 443 but not on port 80.
 <div style='font-size:small; color: #ccc'>Generated 12-05-2022 16:13</div>
 
+# Invoke-SysvolD4Restore
+
+Script to perform an authoritative Sysvol restore (aka D4) in a domain using DFSR for sysvol replication. Doing this by hand is quite time consuming if you have a large number of domain controllers...
+
+The script performs all the steps Microsoft describes in https://learn.microsoft.com/de-de/troubleshoot/windows-server/group-policy/force-authoritative-non-authoritative-synchronization
+
+It supports Whatif, so you can look what it would do. The only optional parameter is a target domain (by default, it operates against the domain of the local computer).
