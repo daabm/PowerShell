@@ -9,7 +9,7 @@
 @{
 
 # Script module or binary module file associated with this manifest.
-RootModule = 'GetADGroupMember.ps1'
+RootModule = 'GetADGroupMember.psm1'
 
 # Version number of this module.
 ModuleVersion = '1.0'
@@ -24,13 +24,13 @@ GUID = '9c40106a-10f7-43c5-829d-e64637d16dc8'
 Author = 'Martin Binder'
 
 # Company or vendor of this module
-CompanyName = ''
+CompanyName = 'Atruvia AG'
 
 # Copyright statement for this module
 Copyright = '(c) 2025 Martin Binder. All rights reserved.'
 
 # Description of the functionality provided by this module
-Description = 'Implements recursion and cross-domain functionality for Get-ADPrincipalGroupmembership and Get-ADGroupMember'
+# Description = ''
 
 # Minimum version of the Windows PowerShell engine required by this module
 # PowerShellVersion = ''
@@ -69,7 +69,7 @@ RequiredModules = @('ActiveDirectory')
 NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = 'Get-ADGroupMember', 'Get-ADPrincipalGroupMembership', 'Get-DomainSids', 'Get-ADGroupOrObject'
+FunctionsToExport = 'Get-ADGroupMember2', 'Get-ADPrincipalGroupMembership2', 'Get-DomainSids'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = ''
@@ -78,7 +78,7 @@ CmdletsToExport = ''
 VariablesToExport = '*'
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
-AliasesToExport = ''
+AliasesToExport = 'Get-ADPrincipalGroupMembership','Get-ADGroupMember','gpgm','ggm'
 
 # DSC resources to export from this module
 # DscResourcesToExport = @()
