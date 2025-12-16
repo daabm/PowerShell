@@ -760,24 +760,14 @@ function Get-ADPrincipalGroupMembership2 {
         Write-Debug "Parameters passed:"
         $PSBoundParameters | Out-String | Write-Debug
 
-        # check if $Identity can be parsed as a distinguished name. If yes and no $server is specified, extract $server from the DN
-        if ($Identity.ToString() -match 'CN=.+?(,DC=)(?<DomainDN>.+)' -and -not $PSBoundParameters.ContainsKey('Server')) {
-            Write-Debug "Deriving target server from '$Identity'"
-            $IdentityServer = $Matches.DomainDN.Replace(',DC=','.')
-            if ($IdentityServer -ne $Server) {
-                Write-Debug "Updating target server. Old value: '$Server' - new value: '$IdentityServer'"
-                $Server = $IdentityServer
-                Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
-            }
-        } elseif ($PSBoundParameters.ContainsKey('Server')) {
+        if ($PSBoundParameters.ContainsKey('Server')) {
             # nothing to do in this case
+        } elseif ($Identity.ToString() -match 'CN=.+?(,DC=)(?<DomainDN>.+)') {
+            # check if $Identity can be parsed as a distinguished name. If yes and no $server is specified, extract $server from the DN
+            Write-Debug "Deriving target server from '$Identity'"
+            $Server = $Matches.DomainDN.Replace(',DC=','.')
         } else {
-            $IdentityServer = $env:USERDNSDOMAIN
-            if ($IdentityServer -ne $Server) {
-                Write-Debug "Updating target server. Old value: '$Server' - new value: '$IdentityServer'"
-                $Server = $IdentityServer
-                Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
-            }
+            $Server = $env:USERDNSDOMAIN
         }
         $GetADParams['Server'] = $Server
 
@@ -799,17 +789,9 @@ function Get-ADPrincipalGroupMembership2 {
             }
         }
 
-        $IdentityServer = ($ADPrincipal.ToString() -split ',DC=',2)[1].Replace(',DC=','.')
-        if ($IdentityServer -ne $Server) {
-            Write-Debug "Updating target server. Old value: '$Server' - new value: '$IdentityServer'"
-            $Server = $IdentityServer
-            $GetADParams['Server'] = $Server
-            Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
-        }
-
         # check if we already have a $DomainSids hashtable or if we need to refresh it
         If ($DomainSIDs -isnot [Hashtable] -and $IncludeTrusts) {
-            Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
+            Remove-Variable DomainSids -ErrorAction SilentlyContinue
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Outbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
@@ -829,7 +811,7 @@ function Get-ADPrincipalGroupMembership2 {
             }
             Write-Debug "Processing $($LocalDomainGroups.Count) search results."
         } else {
-            # Only get the memberOf attribute of $ADPrincipal
+            # Only get the memberOf of $ADPrincipal
             $LocalDomainGroups = Foreach ($MemberOf in $ADPrincipal.memberOf) {
                 [adsi] "LDAP://$Server/$MemberOf"
             }
@@ -851,6 +833,7 @@ function Get-ADPrincipalGroupMembership2 {
             # store all local group sids (only needed if -IncludeTrusts)
             [void] $LocalAccountSids.Add($ADObject.ObjectSid)
             # LDAP matching rule in chain does not evaluate shadow principals, so we need to retrieve them from the memberof attribute of all groups we found so far
+            # Get-ADAttributeChain also does not evaluate shadow principals, so no code changes needed here
             [void] $ShadowPrincipals.AddRange(@(@(($LocalDomainGroup.Properties['memberof'])) -match 'CN=Shadow Principal Configuration,CN=Services,CN=Configuration'))
         }
 
@@ -958,7 +941,7 @@ function Get-ADPrincipalGroupMembership2 {
                         $Results[$ADObject.ObjectGUID] = $ADObject
                         $SourceAccount = $Results.Values + $ADPrincipal | Where-Object {$_.ObjectSid -eq $ADObject.objectSid -and $_.objectClass -ne 'ForeignSecurityPrincipal'}
                         if ($SourceAccount) {
-                            Write-Debug "Found FSP TargetAccount '$($ADObject.Name)' for '$($SourceAccount.Name)'"
+                            Write-Debug "Found FSP TargetAccount '$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)' for '$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)'"
                             $Results[$ADObject.ObjectGUID].TargetAccount += "$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)"
                             [void] $FSPTargetDNs.Add($ADObject.DistinguishedName)
                             if ($Results.ContainsKey($SourceAccount.ObjectGuid)) {
@@ -1109,24 +1092,14 @@ function Get-ADGroupMember2 {
         Write-Debug "Parameters passed:"
         $PSBoundParameters | Out-String | Write-Debug
 
-        # check if $Identity can be parsed as a distinguished name. If yes and $server is not specified, extract $server from the DN
-        if ($Identity.ToString() -match 'CN=.+?(,DC=)(?<DomainDN>.+)' -and -not $PSBoundParameters.ContainsKey('Server')) {
-            Write-Debug "Deriving target server from '$Identity'"
-            $IdentityServer = $Matches.DomainDN.Replace(',DC=','.')
-            if ($IdentityServer -ne $Server) {
-                Write-Debug "Updating target server. Old value: '$Server' - new value: '$IdentityServer'"
-                $Server = $IdentityServer
-                Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
-            }
-        } elseif ($PSBoundParameters.ContainsKey('Server')) {
+        if ($PSBoundParameters.ContainsKey('Server')) {
             # nothing to do here
+        } elseif ($Identity.ToString() -match 'CN=.+?(,DC=)(?<DomainDN>.+)') {
+            # check if $Identity can be parsed as a distinguished name. If yes and $server is not specified, extract $server from the DN
+            Write-Debug "Deriving target server from '$Identity'"
+            $Server = $Matches.DomainDN.Replace(',DC=','.')
         } else {
-            $IdentityServer = (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
-            if ($IdentityServer -ne $Server) {
-                Write-Debug "Updating target server. Old value: '$Server' - new value: '$IdentityServer'"
-                $Server = $IdentityServer
-                Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
-            }
+            $Server = (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
         }
 
         # add 'server' explicitly - if not provided as a parameter, the default $env:COMPUTERDNSDOMAIN will not be in $PSBoundParameters
@@ -1144,20 +1117,15 @@ function Get-ADGroupMember2 {
 
         if ($ADPrincipal.member.Count -eq 0) {
             Write-Verbose "'$Identity' has no members."
-            Return
-        }
-
-        $IdentityServer = ($ADPrincipal.ToString() -split ',DC=',2)[1].Replace(',DC=','.')
-        if ($IdentityServer -ne $Server) {
-            Write-Debug "Updating target server. Old value: '$Server' - new value: '$IdentityServer'"
-            $Server = $IdentityServer
-            $GetADParams['Server'] = $Server
-            Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
+            If (-not $IncludeTrusts){
+                # Identity has no members and we don't traverse across trusts, so we are done.
+                Return
+            }
         }
 
         # check if we already have a $DomainSids hashtable or if we need to refresh it
         if ($DomainSIDs -isnot [Hashtable] -and $IncludeTrusts) {
-            Remove-Variable DomainSids -Verbose -ErrorAction SilentlyContinue
+            Remove-Variable DomainSids -ErrorAction SilentlyContinue
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Inbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
@@ -1176,7 +1144,7 @@ function Get-ADGroupMember2 {
             }
             Write-Debug "Processing $($LocalGroupMembers.Count) search results."
         } else {
-            # Only get the memberOf attribute of $ADPrincipal
+            # Only get member of $ADPrincipal
             $LocalGroupMembers = Foreach ($Member in $ADPrincipal.member) {
                 [adsi] "LDAP://$($GetADParams['Server'])/$Member"
             }
@@ -1283,7 +1251,7 @@ function Get-ADGroupMember2 {
                 $Results[$ADObject.ObjectGuid] = $ADObject
                 $SourceAccount = $Results.Values + $ADPrincipal | Where-Object {$_.ObjectSid -eq $ADObject.ObjectSid -and $_.ObjectClass -ne 'msDS-ShadowPrincipal'}
                 if ($SourceAccount) {
-                    Write-Debug "Found shadow principal TargetAccount '$($ADObject.Name)' for '$($SourceAccount.Name)'"
+                    Write-Debug "Found shadow principal TargetAccount '$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)' for '$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)'"
                     $Results[$ADObject.ObjectGuid].TargetAccount += "$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)"
                     if ($Results.ContainsKey($SourceAccount.ObjectGuid)) {
                         $Results[$SourceAccount.ObjectGuid].TargetAccount += "$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)"
