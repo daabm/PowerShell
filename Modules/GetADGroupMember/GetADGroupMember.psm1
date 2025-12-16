@@ -702,8 +702,11 @@ function Get-ADPrincipalGroupMembership2 {
         Write-Debug "Identity resolved: '$ADPrincipal'"
 
         if ($ADPrincipal.memberof.Count -eq 0) {
-            Write-Verbose "No group memberships found for '$ADPrincipal'."
-            return
+            Write-Verbose "No group memberships found for '$ADPrincipal' in '$($GetADParams['Server'])'."
+            If (-not $IncludeTrusts){
+                # early finish - principal is not a member of anything in his own domain, and we don't traverse trusts...
+                return
+            }
         }
 
         $IdentityServer = ($ADPrincipal.ToString() -split ',DC=',2)[1].Replace(',DC=','.')
@@ -720,8 +723,8 @@ function Get-ADPrincipalGroupMembership2 {
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Outbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
+        # only do a recursive search if $ADPrincipal is member of any group - no sense to search if .memberOf is empty
         if ($Recursive -and -not [string]::IsNullOrEmpty($ADPrincipal.memberOf)) {
-            # only do a recursive search if $ADPrincipal is member of any group - no sense to search if .memberOf is empty
             # ldap matching rule in chain - get all groups the specified $ADPrincipal DN is a member of recursively.
             $LDAPFilter = "(member:1.2.840.113556.1.4.1941:=$ADPrincipal)"
             Write-Debug "Retrieving recursive group memberships with filter: '$LDAPFilter'"
@@ -744,6 +747,9 @@ function Get-ADPrincipalGroupMembership2 {
         $LocalAccountSids = [Collections.Arraylist]::new()
         $ShadowPrincipals = [Collections.Arraylist]::new()
         $ShadowPrincipalDomainSids = @{}   # hashtable storing all domains for which shadow principals were found by sid. Each element contains a nested hashtable with all shadow principals for that domain by sid.
+
+        # store $ADPrincipal ObjectSid - might itself be a direct member of foreign security principals
+        [void] $LocalAccountSids.Add( $ADPrincipal.ObjectSid )
 
         # handle groups in the domain of $ADPrincipal
         foreach ($LocalDomainGroup in $LocalDomainGroups) {
