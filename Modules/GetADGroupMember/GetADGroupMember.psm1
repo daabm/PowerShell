@@ -91,7 +91,7 @@ class ADCustomObject {
         # set up getter and setter for distinguishedName and objectSid
         # this allows to set/change them and update all properties
         $GetObjectSid = {
-            [OutputType([string])]
+            [OutputType([SecurityIdentifier])]
             param()
             return $this._ObjectSid
         }
@@ -146,6 +146,7 @@ class ADCustomObject {
                 }
                 If ($Object.ObjectClass -eq 'Group') {
                     # clear bit 0 from grouptype. this bit signals 'builtin' which [ADGroupCategory] does not know.
+                    # in addition, groupType covers both scope and category in one bitmask
                     $this.GroupScope = ([GroupType] $Object.groupType -band 0x0000FFFE).ToString()
                     $this.GroupCategory = ([GroupType] $Object.groupType -band 0xFFFF0000).ToString()
                     If ($this.GroupCategory -ne 'Security') {
@@ -355,7 +356,7 @@ Function Write-Debug {
     try {
         # some code
     } catch {
-        New-ErrorEvent -VCItem $item -ErrorRecord $_ -InvocationInfo $MyInvocation -LogEvent
+        New-ErrorEvent -ErrorRecord $_ -InvocationInfo $MyInvocation -LogEvent
     }
 #>
 Function New-ErrorEvent {
@@ -524,6 +525,91 @@ function Get-DomainSIDs {
 
 <#
 .SYNOPSIS
+    Helper function to traverse the member/memberof attribute. Faster than LDAP matching rule in chain if the target domain is huge and the memberships are small
+    Returns an array of distinguished names
+.PARAMETER ADObject
+    The base object from which to traverse member(of) as an [ADObject]
+.PARAMETER ADSI
+    The base object from which to traverse member(of) as a [DirectoryEntry]
+.PARAMETER DN
+    The base object from which to traverse member(of) as a [String] distinguished name
+.PARAMETER Attribute
+    The attribute to traverse (member/memberof)
+.PARAMETER Server
+    The domain/server to operate against. If omitted, is derived from the base object distinguished name
+#>
+function Get-ADAttributeChain {
+    [CmdletBinding(DefaultParametersetName='ADObject')]
+    Param(
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=0,ParametersetName='ADObject')]
+        [ADObject] $ADObject,
+
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=0,ParametersetName='DirectoryEntry')]
+        [ADSI] $ADSI,
+
+        [Parameter(Mandatory=$true,ValueFromPipeline=$true,Position=0,ParametersetName='DistinguishedName')]
+        [String] $DN,
+
+        [Parameter(Mandatory=$true,Position=1)]
+        [ValidateSet('member','memberof')]
+        [String] $Attribute,
+
+        [ValidateScript({[URI]::CheckHostName($_).Value__ -gt 1})]
+        [String] $Server,
+
+        [Switch] $Recursing
+    )
+    process {
+        If (-not $PSBoundParameters.ContainsKey('Recursing')){
+            # global results hashtable to avoid duplicates and looping due to circular group nesting
+            $_Results = [ordered] @{}
+        }
+
+        Switch ($PSCmdlet.ParameterSetName){
+            'ADObject' {
+                $DN = $ADObject.DistinguishedName
+                Write-Debug "DN from ADObject: $DN"
+                break
+            }
+            'DirectoryEntry' {
+                $DN = $ADSI.DistinguishedName
+                Write-Debug "DN from ADSI: $DN"
+                break
+            }
+            default {
+                Write-Debug "DN provided directly: $DN"
+                #nothing to do - we only have 3 parametersets, so third must be DN already
+            }
+        }
+
+        If (-not $PSBoundParameters.ContainsKey('Server')){
+            $Server = ($DN -split ',DC=',2)[1].Replace(',DC=','.').ToUpper()
+            Write-Debug "Server from DN: $Server"
+        }
+
+        $DE = [adsi] "LDAP://$Server/$DN"
+        If ($_Results.Keys -contains $DN){
+            Write-Debug "Skipping, $DN already visited."
+        } ElseIf ($DN -match 'CN=Shadow Principal Configuration,CN=Services,CN=Configuration'){
+            Write-Debug "Skipping, $DN is a shadow principal."
+        } Else {
+            $_Results[ $DN ] = $DE
+            Foreach ($Tree in $DE.$Attribute){
+                Write-Debug "$DN - Following $Attribute for $Tree"
+                . Get-ADAttributeChain $Tree -Attribute $Attribute -Server $Server -Recursing
+            }
+        }
+        If (-not $PSBoundParameters.ContainsKey('Recursing')){
+            # remove first element which is the account we are evaluating itself
+            $Results = $_Results.Values | Select-Object -Skip 1
+            Remove-Variable _Results
+            Return $Results
+        }
+    }
+}
+
+<#
+.SYNOPSIS
     Helper function to remove all parameters from a parameter hashtable that the specified Cmdlet does not have.
 #>
 function Sanitize-BoundParameters {
@@ -577,6 +663,9 @@ function Sanitize-BoundParameters {
     Ignore failing trusts when ErrorAction is 'Stop'.
 .PARAMETER Depth
     If memberships should be evaluated across more than one trust level, specify the number of levels to traverse. Defaults to 1 (will only resolve in direct trusts)
+.PARAMETER UseLDAPChainFilter
+    Enables member:1.2.840.113556.1.4.1941 LDAP matching rule in chain for membership evaluation instead of following memberof attributes. The LDAP filter is slow in large domains, but fast when a lot of memberships are evaluated.
+    LDAP matching rule in chain filter 
 .INPUTS
     Microsoft.ActiveDirectory.Management.ADPrincipal
     A principal object that represents a user, computer or group is received by the Identity parameter. Derived types, such as the following are also received by this parameter.
@@ -643,7 +732,8 @@ function Get-ADPrincipalGroupMembership2 {
         [Alias('ITE')]
         [Switch] $IgnoreTrustErrors,
         [Parameter(ParameterSetName='Recursive')]
-        [Int] $Depth = 1
+        [Int] $Depth = 1,
+        [Switch] $UseLDAPChainFilter
     )
     begin {
         if ($IncludeTrusts -and $Depth -gt 0) {
@@ -725,14 +815,18 @@ function Get-ADPrincipalGroupMembership2 {
 
         # only do a recursive search if $ADPrincipal is member of any group - no sense to search if .memberOf is empty
         if ($Recursive -and -not [string]::IsNullOrEmpty($ADPrincipal.memberOf)) {
-            # ldap matching rule in chain - get all groups the specified $ADPrincipal DN is a member of recursively.
-            $LDAPFilter = "(member:1.2.840.113556.1.4.1941:=$ADPrincipal)"
-            Write-Debug "Retrieving recursive group memberships with filter: '$LDAPFilter'"
-            $Searcher = [adsisearcher]::new()
-            $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])"
-            $Searcher.Filter = $LDAPFilter
-            $LocalDomainGroups = $Searcher.FindAll()
-            $Searcher.Dispose()
+            If ($UseLDAPChainFilter){
+                # ldap matching rule in chain - get all groups the specified $ADPrincipal DN is a member of recursively.
+                $LDAPFilter = "(member:1.2.840.113556.1.4.1941:=$ADPrincipal)"
+                Write-Debug "Retrieving recursive group memberships with filter: '$LDAPFilter'"
+                $Searcher = [adsisearcher]::new()
+                $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])"
+                $Searcher.Filter = $LDAPFilter
+                $LocalDomainGroups = $Searcher.FindAll()
+                $Searcher.Dispose()
+            } Else {
+                [array] $LocalDomainGroups = Get-ADAttributeChain $ADPrincipal -Attribute memberof -Server $GetADParams['Server']
+            }
             Write-Debug "Processing $($LocalDomainGroups.Count) search results."
         } else {
             # Only get the memberOf attribute of $ADPrincipal
@@ -748,19 +842,16 @@ function Get-ADPrincipalGroupMembership2 {
         $ShadowPrincipals = [Collections.Arraylist]::new()
         $ShadowPrincipalDomainSids = @{}   # hashtable storing all domains for which shadow principals were found by sid. Each element contains a nested hashtable with all shadow principals for that domain by sid.
 
-        # store $ADPrincipal ObjectSid - might itself be a direct member of foreign security principals
         [void] $LocalAccountSids.Add( $ADPrincipal.ObjectSid )
 
         # handle groups in the domain of $ADPrincipal
         foreach ($LocalDomainGroup in $LocalDomainGroups) {
             $ADObject = [ADCustomObject] $LocalDomainGroup
             $Results[$ADObject.ObjectGUID] = $ADObject
-            if ($IncludeTrusts) {
-                # if we recurse, store all local group sids (only needed if -IncludeTrusts) and shadow principal memberships
-                # we need to verify them in their respective domains
-                [void] $LocalAccountSids.Add($ADObject.ObjectSid)
-                [void] $ShadowPrincipals.AddRange(@(@(($LocalDomainGroup.Properties['memberof'])) -match 'CN=Shadow Principal Configuration,CN=Services,CN=Configuration'))
-            }
+            # store all local group sids (only needed if -IncludeTrusts)
+            [void] $LocalAccountSids.Add($ADObject.ObjectSid)
+            # LDAP matching rule in chain does not evaluate shadow principals, so we need to retrieve them from the memberof attribute of all groups we found so far
+            [void] $ShadowPrincipals.AddRange(@(@(($LocalDomainGroup.Properties['memberof'])) -match 'CN=Shadow Principal Configuration,CN=Services,CN=Configuration'))
         }
 
         If ($ShadowPrincipals.Count -gt 0) {
@@ -822,7 +913,7 @@ function Get-ADPrincipalGroupMembership2 {
                 foreach ($ShadowPrincipalTargetAccount in $ShadowPrincipalTargetAccounts) {
                     $ADObject = [ADCustomObject] $ShadowPrincipalTargetAccount
                     $SourceAccount = $ShadowPrincipalDomainSids[$ShadowPrincipalDomainSid].$($ADObject.ObjectSid)
-                    Write-Debug "Found shadow principal TargetAccount '$($ADObject.Name)' for '$($SourceAccount.Name)'"
+                    Write-Debug "Found shadow principal TargetAccount '$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)' for '$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)'"
                     $Results[$ADObject.ObjectGuid] = [ADCustomObject] $ADObject
                     $Results[$ADObject.ObjectGuid].TargetAccount += "$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)"
                     $Results[$SourceAccount.objectGuid].TargetAccount += "$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)"
@@ -926,6 +1017,9 @@ function Get-ADPrincipalGroupMembership2 {
     Ignore failing trusts when ErrorAction is 'Stop'.
 .PARAMETER Depth
     Specify the number of trusts to traverse with IncludeTrusts. Defaults to 1 (will only resolve in direct trusts)
+.PARAMETER UseLDAPChainFilter
+    Enables member:1.2.840.113556.1.4.1941 LDAP matching rule in chain for membership evaluation instead of following memberof attributes. The LDAP filter is slow in large domains, but fast when a lot of memberships are evaluated.
+    LDAP matching rule in chain filter 
 .INPUTS
     None or Microsoft.ActiveDirectory.Management.ADGroup
     A group object is received by the Identity parameter
@@ -988,7 +1082,8 @@ function Get-ADGroupMember2 {
         [Alias('ITE')]
         [Switch] $IgnoreTrustErrors,
         [Parameter(ParameterSetName='Recursive')]
-        [Int] $Depth = 1
+        [Int] $Depth = 1,
+        [Switch] $UseLDAPChainFilter
     )
     begin {
         if ($IncludeTrusts -and $Depth -gt 0) {
@@ -1067,14 +1162,18 @@ function Get-ADGroupMember2 {
         }
 
         if ($Recursive -and -not [string]::IsNullOrEmpty($ADPrincipal.member)) {
-            # ldap matching rule in chain - get all principals that are a member of the specified $ADPrincipal recursively.
-            $LDAPFilter = "(memberOf:1.2.840.113556.1.4.1941:=$ADPrincipal)"
-            Write-Debug "Retrieving recursive group members with filter: '$LDAPFilter'"
-            $Searcher = [adsisearcher]::new()
-            $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])"
-            $Searcher.Filter = $LDAPFilter
-            $LocalGroupMembers = $Searcher.FindAll()
-            $Searcher.Dispose()
+            If ($UseLDAPChainFilter){
+                # ldap matching rule in chain - get all principals that are a member of the specified $ADPrincipal recursively.
+                $LDAPFilter = "(memberOf:1.2.840.113556.1.4.1941:=$ADPrincipal)"
+                Write-Debug "Retrieving recursive group members with filter: '$LDAPFilter'"
+                $Searcher = [adsisearcher]::new()
+                $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])"
+                $Searcher.Filter = $LDAPFilter
+                $LocalGroupMembers = $Searcher.FindAll()
+                $Searcher.Dispose()
+            } Else {
+                [array] $LocalGroupMembers = Get-ADAttributeChain $ADPrincipal -Attribute member
+            }
             Write-Debug "Processing $($LocalGroupMembers.Count) search results."
         } else {
             # Only get the memberOf attribute of $ADPrincipal
@@ -1138,7 +1237,7 @@ function Get-ADGroupMember2 {
                     $Results[$ADObject.objectGuid] = $ADObject
                     $SourceAccount = $Results.Values + $ADPrincipal | Where-Object {$_.objectSid -eq $ADObject.objectSid -and $_.objectClass -eq 'ForeignSecurityPrincipal'}
                     if ($SourceAccount) {
-                        Write-Debug "Found FSP TargetAccount '$($ADObject.Name)' for '$($SourceAccount.Name)'"
+                        Write-Debug "Found FSP TargetAccount '$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)' for '$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)'"
                         $Results[$ADObject.objectGuid].TargetAccount = "$($SourceAccount.Domain.Split('.')[0])\$($SourceAccount.Name)"
                         if ($Results.ContainsKey($SourceAccount.ObjectGuid)) {
                             $Results[$SourceAccount.ObjectGuid].TargetAccount += "$($ADObject.Domain.Split('.')[0])\$($ADObject.Name)"
