@@ -782,7 +782,7 @@ function Get-ADPrincipalGroupMembership2 {
         Write-Debug "Identity resolved: '$ADPrincipal'"
 
         if ($ADPrincipal.memberof.Count -eq 0) {
-            Write-Verbose "No group memberships found for '$ADPrincipal' in '$($GetADParams['Server'])'."
+            Write-Verbose "No group memberships found for '$ADPrincipal' in '$Server'."
             If (-not $IncludeTrusts){
                 # early finish - principal is not a member of anything in his own domain, and we don't traverse trusts...
                 return
@@ -801,12 +801,12 @@ function Get-ADPrincipalGroupMembership2 {
                 $LDAPFilter = "(member:1.2.840.113556.1.4.1941:=$ADPrincipal)"
                 Write-Debug "Retrieving recursive group memberships with filter: '$LDAPFilter'"
                 $Searcher = [adsisearcher]::new()
-                $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])"
+                $Searcher.SearchRoot = [adsi] "LDAP://$Server"
                 $Searcher.Filter = $LDAPFilter
                 $LocalDomainGroups = $Searcher.FindAll()
                 $Searcher.Dispose()
             } Else {
-                [array] $LocalDomainGroups = Get-ADAttributeChain $ADPrincipal -Attribute memberof -Server $GetADParams['Server']
+                [array] $LocalDomainGroups = Get-ADAttributeChain $ADPrincipal -Attribute memberof -Server $Server
             }
             Write-Debug "Processing $($LocalDomainGroups.Count) search results."
         } else {
@@ -840,13 +840,13 @@ function Get-ADPrincipalGroupMembership2 {
             # handle shadow principals in the domain of $ADPrincipal, if any are present, and speed up retrieval of foreign objects through grouping by domain
             # this allows for a single ldap operation to retrieve all shadow principals in a given domain at once instead of fetching them one by one...
 
-            Write-Debug "Retrieving shadow principal objects in domain '$($GetADParams['Server'])'"
+            Write-Debug "Retrieving shadow principal objects in domain '$Server'"
 
             $LDAPFilter = '(|' + $(Foreach($ShadowPrincipal in $ShadowPrincipals | Select-Object -Unique) {"(name=$(($ShadowPrincipal.Substring(3) -split ',CN=')[0]))"}) + ')'
             $SearchBase = "CN=$(($ShadowPrincipal -split ',CN=',2)[1])"
 
             $Searcher = [adsisearcher]::new()
-            $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])/$SearchBase"
+            $Searcher.SearchRoot = [adsi] "LDAP://$Server/$SearchBase"
             $Searcher.Filter = $LDAPFilter
             $ShadowPrincipalObjects = $Searcher.FindAll()
             $Searcher.Dispose()
@@ -1133,7 +1133,7 @@ function Get-ADGroupMember2 {
                 $LDAPFilter = "(memberOf:1.2.840.113556.1.4.1941:=$ADPrincipal)"
                 Write-Debug "Retrieving recursive group members with filter: '$LDAPFilter'"
                 $Searcher = [adsisearcher]::new()
-                $Searcher.SearchRoot = [adsi] "LDAP://$($GetADParams['Server'])"
+                $Searcher.SearchRoot = [adsi] "LDAP://$Server"
                 $Searcher.Filter = $LDAPFilter
                 $LocalGroupMembers = $Searcher.FindAll()
                 $Searcher.Dispose()
@@ -1144,7 +1144,7 @@ function Get-ADGroupMember2 {
         } else {
             # Only get member of $ADPrincipal
             $LocalGroupMembers = Foreach ($Member in $ADPrincipal.member) {
-                [adsi] "LDAP://$($GetADParams['Server'])/$Member"
+                [adsi] "LDAP://$Server/$Member"
             }
         }
 
