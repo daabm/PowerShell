@@ -789,9 +789,8 @@ function Get-ADPrincipalGroupMembership2 {
             }
         }
 
-        # check if we already have a $DomainSids hashtable or if we need to refresh it
-        If ($DomainSIDs -isnot [Hashtable] -and $IncludeTrusts) {
-            Remove-Variable DomainSids -ErrorAction SilentlyContinue
+        # check if we need a $DomainSids hashtable
+        If ($IncludeTrusts) {
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Outbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
@@ -1123,9 +1122,8 @@ function Get-ADGroupMember2 {
             }
         }
 
-        # check if we already have a $DomainSids hashtable or if we need to refresh it
-        if ($DomainSIDs -isnot [Hashtable] -and $IncludeTrusts) {
-            Remove-Variable DomainSids -ErrorAction SilentlyContinue
+        # check if we need a $DomainSids hashtable
+        if ($IncludeTrusts) {
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Inbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
