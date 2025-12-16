@@ -790,7 +790,7 @@ function Get-ADPrincipalGroupMembership2 {
         }
 
         # check if we need a $DomainSids hashtable
-        If ($IncludeTrusts) {
+        If ($IncludeTrusts -and -not $PSBoundParameters.ContainsKey('Server')) {
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Outbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
@@ -1123,7 +1123,7 @@ function Get-ADGroupMember2 {
         }
 
         # check if we need a $DomainSids hashtable
-        if ($IncludeTrusts) {
+        if ($IncludeTrusts -and -not $PSBoundParameters.ContainsKey('Server')) {
             $DomainSIDs = Get-DomainSIDs -Server $Server -ExcludedTrustDirection ([ADTrustDirection]::Inbound) -IgnoreTrustErrors:$IgnoreTrustErrors
         }
 
